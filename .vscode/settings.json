@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "./dashboard/sentiment-by-year-month",
+        "./dashboard/functions"
+    ]
+}

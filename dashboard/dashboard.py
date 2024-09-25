@@ -2,10 +2,20 @@ import pandas as pd
 import panel as pn
 import hvplot.pandas
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import holoviews as hv
 
 # Load the data
 csv_file = 'nz_reviews_with_routes.csv'  
 reviews_df = pd.read_csv(csv_file)
+
+# Ensure consistent theme across Matplotlib and HvPlot
+plt.style.use('Solarize_Light2')  # Use a valid Matplotlib theme
+pn.extension(sizing_mode="stretch_width", theme='dark')  # Set Panel/HvPlot theme to 'dark'
+
+# Define the plot size
+PLOT_SIZE = (10, 6)
 
 def parse_date(date_flown_str):
     return pd.to_datetime(date_flown_str, format='%Y-%m-%d')
@@ -42,7 +52,7 @@ def get_sentiment_analysis(chosen_year):
 
     return year_reviews, sentiment_counts
 
-# Generate the sentiment plot based on user selection
+# Function to update the plot and recommendations when the year is selected
 def update_plot(event):
     chosen_year = event.new
     year_reviews, monthly_sentiment_counts = get_sentiment_analysis(chosen_year)
@@ -52,19 +62,33 @@ def update_plot(event):
     recommendations = interpret_results(chosen_year, len(year_reviews), monthly_sentiment_counts, is_yearly=(chosen_year == 'ALL'))
     recommendations_pane.object = recommendations
 
+    # Update the average ratings plot
+    avg_ratings_plot.object = plot_avg_ratings(year_reviews, chosen_year)
+
 # Visualization for monthly sentiment
 def plot_monthly_sentiment(counts):
     # Define the color mapping for sentiment
     color_map = {'Negative': 'red', 'Neutral': 'orange', 'Positive': 'green'}
-
-    # Create a line plot for each sentiment separately
-    plot = counts.hvplot.line(
-        title='Total Reviews by Month and Sentiment',
-        xlabel='Month',
-        ylabel='Number of Reviews',
-        color=list(color_map.values()),  # Assign colors based on the order of sentiment
+    
+    # Create a plot for each sentiment
+    ax = counts.plot(
+        kind='line',
+        color=[color_map.get(col, 'black') for col in counts.columns],  # Assign colors
+        marker='o',
+        linewidth=2,
+        figsize=(PLOT_SIZE[0], PLOT_SIZE[1])
     )
-    return plot
+
+    # Customize the plot
+    plt.xlabel('Month' if 'month' in counts.index.name else 'Year', fontsize=14, fontweight='bold')
+    plt.ylabel('Number of Reviews', fontsize=14, fontweight='bold')
+    plt.title('Total Reviews by Month and Sentiment' if 'month' in counts.index.name else 'Total Reviews by Year and Sentiment', fontsize=16, fontweight='bold')
+    plt.legend(title='Sentiment', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    
+    # Optimize layout and display the plot
+    plt.tight_layout()
+    return plt.gcf() 
 
 # Interpretation function for recommendations
 def interpret_results(chosen_year, total_reviews, sentiment_data, is_yearly=True):
@@ -169,28 +193,76 @@ def interpret_results(chosen_year, total_reviews, sentiment_data, is_yearly=True
 
     return "\n".join(recommendations)
 
+
+# Function to generate the average ratings plot
+def plot_avg_ratings(year_reviews, chosen_year):
+    # Identify the rating columns
+    rating_columns = ['seat_comfort', 'cabin_staff_service', 'food_&_beverages', 'ground_service', 
+                      'value_for_money', 'inflight_entertainment', 'wifi_&_connectivity']
+    
+    # Group data by route type (Domestic/International) and calculate average ratings
+    average_ratings = year_reviews.groupby(['is_domestic'])[rating_columns].mean().reset_index()
+    
+    # Melt the dataframe for easier plotting
+    average_ratings_melted = average_ratings.melt(id_vars=['is_domestic'], 
+                                                  value_vars=rating_columns,
+                                                  var_name='category', 
+                                                  value_name='average_rating')
+    
+    # Plot the average ratings comparison with consistent figure size and theme
+    plt.figure(figsize=PLOT_SIZE)
+    sns.barplot(data=average_ratings_melted, x='category', y='average_rating', hue='is_domestic')
+    plt.title(f'Average Ratings per Category: Domestic vs International Routes ({chosen_year})', fontsize=16, fontweight='bold')
+    plt.xlabel('Category', fontsize=14)
+    plt.ylabel('Average Rating', fontsize=14)
+    plt.xticks(rotation=45, ha='right')
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    plt.legend(handles=handles, labels=['Domestic' if label == 'True' else 'International' for label in labels], 
+               title='Route Type', title_fontsize='13', fontsize='12')
+
+    plt.tight_layout()
+    return plt.gcf()  # Return the figure object for the plot
+
+
+### THE DASHBOARD
+
 # Initialize the plot with the first year in the dropdown
-initial_year = available_years[0]
+initial_year = 'ALL'
 year_reviews, monthly_sentiment_counts = get_sentiment_analysis(initial_year)
-monthly_sentiment_plot = plot_monthly_sentiment(monthly_sentiment_counts)
+
+# Initialize the plots correctly using Matplotlib pane
+monthly_sentiment_plot = pn.pane.Matplotlib(plot_monthly_sentiment(monthly_sentiment_counts), sizing_mode='stretch_width')
+avg_ratings_plot = pn.pane.Matplotlib(plot_avg_ratings(year_reviews, initial_year), sizing_mode='stretch_width')
 
 # Get initial recommendations
 recommendations = interpret_results(initial_year, len(year_reviews), monthly_sentiment_counts, is_yearly=(initial_year == 'ALL'))
 
-# Create a Panel layout
-pn.extension()
-
-# Create the dashboard layout
-monthly_sentiment_plot = pn.pane.HoloViews(monthly_sentiment_plot)  # Ensure the plot can be updated
-recommendations_pane = pn.pane.Markdown(recommendations)  # Pane for recommendations
-
-dashboard = pn.Row(
-    pn.Column(year_selector, monthly_sentiment_plot),  # Left pane for the plot and year selector
-    pn.Column(pn.pane.Markdown("### Recommendations"), recommendations_pane)  # Right pane for recommendations
-)
+# Create a Panel layout for recommendations
+recommendations_pane = pn.pane.Markdown(recommendations)
 
 # Add event listener to update plot and recommendations when year is selected
 year_selector.param.watch(update_plot, 'value')
 
-# Show the dashboard
-dashboard.servable()
+# Define the layout grid for the dashboard
+dashboard_grid = pn.GridSpec(sizing_mode='stretch_both', max_height=800)
+
+# Wrap year_selector in a Column with a fixed height
+year_selector_column = pn.Column(year_selector, sizing_mode='fixed', height=10)  # Set the desired height
+
+# Adding panes for plots
+dashboard_grid[0, 0] = pn.Row(year_selector, sizing_mode='fixed')  # Use a Row to control sizing
+
+dashboard_grid[1, 0] = monthly_sentiment_plot 
+dashboard_grid[1, 1] = avg_ratings_plot        
+
+# Right pane for recommendations
+dashboard_grid[:, 2] = pn.Column(pn.pane.Markdown("### Recommendations"), recommendations_pane)
+
+# Create the final layout for the dashboard
+dashboard = pn.Column(dashboard_grid)
+
+# Serve the dashboard
+dashboard.show()  # This is for local development; use `dashboard.servable()` for deploying
+
+
