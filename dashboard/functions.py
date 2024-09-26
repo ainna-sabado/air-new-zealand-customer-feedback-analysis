@@ -2,12 +2,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-import re
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import stopwords
 from collections import Counter
 from nltk.util import ngrams
+import re
 from wordcloud import WordCloud
+
 
 # Define plot size
 PLOT_SIZE = (10, 6)
@@ -123,8 +124,6 @@ def plot_avg_ratings_by_seat_type(year_reviews, chosen_year):
     plt.tight_layout()
     return plt.gcf()
 
-
-
 # Initialize stop words and lemmatizer
 stop_words = set(stopwords.words('english'))
 lemmatizer = WordNetLemmatizer()
@@ -141,7 +140,7 @@ def preprocess_text(text):
     text = " ".join([lemmatizer.lemmatize(word) for word in text.split() if word not in stop_words])
     return text
 
-# Function to generate exactly 3-word n-grams and join words with underscores
+# Function to generate n-grams
 def generate_ngrams(text, n=3):
     words = text.split()
     ngrams_list = ["_".join(ngram) for ngram in ngrams(words, n)]
@@ -153,29 +152,82 @@ def get_top_n_ngrams(sentiment_reviews, n=20):
     for review in sentiment_reviews:
         all_ngrams.extend(generate_ngrams(review)) 
     
+    # Remove excluded terms
     filtered_ngrams = [ngram for ngram in all_ngrams if all(term not in ngram for term in excluded_terms)]
+    
+    # Count frequencies of remaining n-grams
     ngram_freq = Counter(filtered_ngrams)
-    return ngram_freq.most_common(n)
+    
+    # Return a dictionary instead of a list of tuples
+    return dict(ngram_freq.most_common(n))  # Return as a dictionary
 
-# Function to preprocess n-grams
 def preprocess_ngrams(ngram_freq):
+    # Split multi-word n-grams into individual words
     word_list = []
-    for ngram, freq in ngram_freq.items():
+    for ngram, freq in ngram_freq.items():  # This will now work because ngram_freq is a dictionary
         words = ngram.split('_')
         word_list.extend(words * freq)
     return Counter(word_list)
 
-# Function to plot the word cloud
-def plot_wordcloud(ngram_freq, title, mask):
+def plot_wordcloud(ngram_freq, title, mask, ax):
     if not ngram_freq:  
-        print(f"No n-grams to plot for {title}.")
+        ax.set_title(f'Word Cloud for {title}')
+        ax.axis('off')  # Hide axis if no n-grams
         return
     
+    # Preprocess n-grams to individual words
     word_freq_dict = preprocess_ngrams(ngram_freq)
-    wc = WordCloud(width=800, height=400, background_color='white', colormap='viridis', mask=mask).generate_from_frequencies(word_freq_dict)
     
-    plt.figure(figsize=(10, 6))
-    plt.imshow(wc, interpolation='bilinear')
-    plt.axis('off')
-    plt.title(title, fontsize=16, fontweight='bold')
-    plt.show()
+    # Create WordCloud
+    wordcloud = WordCloud(width=800, height=400, background_color='white', mask=mask).generate_from_frequencies(word_freq_dict)
+    
+    ax.imshow(wordcloud, interpolation='bilinear')
+    ax.axis('off')  # Hide axes
+    ax.set_title(f'Word Cloud for {title}')
+
+def plot_ngrams(ngram_freq, title, ax):
+    if not ngram_freq:
+        ax.set_title(f'Top N-grams for {title}')
+        ax.axis('off')  # Hide axis if no n-grams
+        return
+    
+    ngrams = list(ngram_freq.keys())  # Get n-grams as a list
+    counts = list(ngram_freq.values())  # Get counts as a list
+
+    ax.barh(ngrams, counts, color='skyblue')
+    ax.set_title(f'Top N-grams for {title}')
+    ax.invert_yaxis()  # Invert y-axis to have the highest count on top
+    ax.set_xlabel('Frequency')
+
+
+def plot_all_review_ngrams(top_positive_ngrams, top_negative_ngrams, top_neutral_ngrams, mask):
+    """Plots word clouds and n-grams for positive, negative, and neutral reviews."""
+    
+    # Create a single figure with subplots for all sentiments
+    fig, axes = plt.subplots(3, 2, figsize=(15, 18))  # 3 rows for each sentiment, 2 columns for wordcloud and n-grams
+    
+    # Function to safely plot with handling for empty n-grams
+    def safe_plot(wordcloud_ngrams, sentiment_title, ax_wordcloud, ax_ngrams):
+        if wordcloud_ngrams:
+            plot_wordcloud(wordcloud_ngrams, sentiment_title, mask, ax_wordcloud)
+            plot_ngrams(wordcloud_ngrams, f'Top N-grams - {sentiment_title}', ax_ngrams)
+        else:
+            ax_wordcloud.set_title(f'No N-grams for {sentiment_title}')
+            ax_wordcloud.axis('off')  # Hide the axis for the word cloud
+            ax_ngrams.set_title(f'No N-grams for {sentiment_title}')
+            ax_ngrams.axis('off')  # Hide the axis for the n-grams
+
+    # Plotting for Positive Reviews
+    safe_plot(top_positive_ngrams, 'Positive Reviews', axes[0, 0], axes[0, 1])
+
+    # Plotting for Negative Reviews
+    safe_plot(top_negative_ngrams, 'Negative Reviews', axes[1, 0], axes[1, 1])
+
+    # Plotting for Neutral Reviews
+    safe_plot(top_neutral_ngrams, 'Neutral Reviews', axes[2, 0], axes[2, 1])
+
+    # Adjust layout
+    plt.tight_layout()
+    
+    return plt.gcf()  # Return the single combined figure
+
