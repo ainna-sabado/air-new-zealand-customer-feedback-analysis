@@ -9,7 +9,6 @@ from nltk.util import ngrams
 import re
 from wordcloud import WordCloud
 
-
 # Define plot size
 PLOT_SIZE = (10, 6)
 

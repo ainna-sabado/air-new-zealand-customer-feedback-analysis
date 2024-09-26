@@ -14,6 +14,25 @@ from functions import (
 import numpy as np
 from PIL import Image
 
+# Apply the Panel extension with a dark theme
+pn.extension('plotly', theme='dark')
+
+plt.style.use('seaborn-v0_8-dark')
+
+plt.rcParams.update({
+    'figure.facecolor': 'black',
+    'axes.facecolor': 'black',
+    'axes.edgecolor': 'white',
+    'axes.labelcolor': 'white',
+    'xtick.color': 'white',
+    'ytick.color': 'white',
+    'grid.color': 'gray',
+    'text.color': 'white',
+    'figure.figsize': (10, 6),
+    'savefig.facecolor': 'black',
+    'savefig.edgecolor': 'black'
+})
+
 # Load the data
 csv_file = '/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/nz_reviews_with_routes.csv'
 reviews_df = pd.read_csv(csv_file)
@@ -84,22 +103,24 @@ top_row = pn.Column(
     year_selector
 )
 
-# Assign elements to the grid with specified widths
-dashboard_grid[0, 1] = monthly_sentiment_plot
-dashboard_grid[1, 1] = avg_ratings_plot       
-dashboard_grid[2, 1] = sentiment_distribution_plot 
-dashboard_grid[3, 1] = avg_ratings_seat_plot  
-
-# Create a separate pane for n-grams plots
-#ngram_figures = pn.Column(*plot_all_review_ngrams(top_positive_ngrams, top_negative_ngrams, top_neutral_ngrams, mask))
-dashboard_grid[0:4, 2] = ngram_figures  # Place it in the grid
-
-# Recommendations with top row content in the left pane (1st column)
+# First column: top_row and recommendations_pane
 dashboard_grid[:, 0] = pn.Column(
     top_row,  # Include the top row content here
     pn.pane.Markdown("### Recommendations"),
     recommendations_pane
 )
+
+# Second and third columns: ngram_figures spanning these columns
+dashboard_grid[:, 1:3] = ngram_figures
+
+# Fourth column: monthly_sentiment_plot and avg_ratings_plot
+dashboard_grid[0, 3:4] = monthly_sentiment_plot
+dashboard_grid[1, 3:4] = avg_ratings_plot
+
+# Fifth column: sentiment_distribution_plot and avg_ratings_seat_plot
+dashboard_grid[2, 3:4] = sentiment_distribution_plot
+dashboard_grid[3, 3:4] = avg_ratings_seat_plot
+
 
 # Set sizing mode if needed
 dashboard_grid.sizing_mode = 'stretch_both'  # or other sizing modes as required
