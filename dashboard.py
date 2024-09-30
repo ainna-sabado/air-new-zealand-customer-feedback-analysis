@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 
+
 # Ensure Panel is using the latest template
 pn.extension()
 
@@ -27,32 +28,93 @@ available_years = [str(year) for year in sorted(reviews_df['year'].unique())] + 
 # Define plot size
 PLOT_SIZE = (10, 6)
 
+############################ OVERALL RESULTS ############################
+all_reviews = "air_nz_cleaned_data.csv"
+all_reviews = pd.read_csv(all_reviews)
+
+# Overall average rating
+average_rating = all_reviews['rating'].mean()
+
+rating_html = """
+<div style="text-align: center; font-size: 24px; color: #333; background-color: #f8f9fa; border-radius: 8px; padding: 10px;">
+    <strong>Overall Rating:</strong> {average_rating:.2f} / 10
+</div>
+""".format(average_rating=average_rating)
+
+rating_display = pn.pane.HTML(rating_html, width=300, height=100)
+
+# Rating categories
+rating_columns = ['seat_comfort', 'cabin_staff_service', 'food_&_beverages', 'ground_service', 
+                  'wifi_&_connectivity', 'value_for_money', 'inflight_entertainment']
+
+# Example average ratings by category (replace with actual values from your data)
+average_ratings_by_category = np.ceil(all_reviews[rating_columns].mean())
+
+top_5_ratings = average_ratings_by_category.sort_values(ascending=False).head(5)
+
+top_5_ratings = top_5_ratings.sort_index()
+
+# Define the star symbols (you can use CSS or images as well)
+def generate_star_html(rating):
+    full_star = '<span style="color: gold; font-size: 24px;">&#9733;</span>'  # Filled star (★)
+    half_star = '<span style="color: gold; font-size: 24px;">&#11088;</span>'  # Half star (⯨)
+    empty_star = '<span style="color: lightgray; font-size: 24px;">&#9734;</span>'  # Empty star (☆)
+
+    stars = ""
+    full_stars = int(rating)  # Full stars count
+    half_stars = 1 if (rating - full_stars) >= 0.5 else 0  # Half star if the remainder is >= 0.5
+    empty_stars = 5 - full_stars - half_stars  # Remaining stars are empty
+
+    stars += full_star * full_stars  # Add full stars
+    stars += half_star * half_stars  # Add half star
+    stars += empty_star * empty_stars  # Add empty stars
+    
+    return stars
+
+# Generate the HTML for all categories
+html_content = "<div style='font-family: Arial, sans-serif; padding: 10px;'>"
+html_content += "<h3>Overall Average Ratings by Category</h3>"
+
+for category, rating in top_5_ratings.items():
+    stars = generate_star_html(rating)
+    # Formatting category names with stars
+    html_content += f"<div style='margin-bottom: 10px;'><strong>{category.replace('_', ' ').title()}:</strong> {stars} ({rating:.1f})</div>"
+
+html_content += "</div>"
+
+overall_category_ratings = pn.pane.HTML(html_content, width=500)
+
+
 ############################ WIDGET FOR YEAR SELECTION ############################
 year_selector = pn.widgets.Select(name='Select Year', options=available_years, value='ALL', sizing_mode='stretch_width')
 
 # Variable to track current page (sentiment analysis, ratings, or home)
 current_page = 'home'
 
-# Function to filter reviews based on selected year
+# Ratings converted to numeric if they are in string format
+reviews_df['rating'] = pd.to_numeric(reviews_df['rating'], errors='coerce')
+
+
 def get_sentiment_analysis(reviews_df, chosen_year):
     if chosen_year == 'ALL':
+        # Group by year for the overall data
         year_reviews = reviews_df
-        sentiment_counts = year_reviews.groupby(['month', 'vader_sentiment']).size().unstack(fill_value=0)
+        sentiment_counts = year_reviews.groupby(['year', 'vader_sentiment']).size().unstack(fill_value=0)
     else:
+        # Group by month for the selected year
         year_reviews = reviews_df[reviews_df['year'] == int(chosen_year)]
         sentiment_counts = year_reviews.groupby(['month', 'vader_sentiment']).size().unstack(fill_value=0)
 
-    # Reindex months for ordered display
-    if chosen_year != 'ALL':
+        # Reindex by month to ensure correct order of months
         sentiment_counts = sentiment_counts.reindex([
             'January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December'
-        ])
+        ], fill_value=0)
 
     return year_reviews, sentiment_counts
 
-# Visualization for monthly sentiment
-def plot_monthly_sentiment(sentiment_counts):
+# Visualization for monthly or yearly sentiment
+def plot_monthly_sentiment(sentiment_counts, year_reviews, chosen_year):
     color_map = {'Negative': 'red', 'Neutral': 'orange', 'Positive': 'green'}
     
     ax = sentiment_counts.plot(
@@ -62,13 +124,23 @@ def plot_monthly_sentiment(sentiment_counts):
         linewidth=2,
         figsize=PLOT_SIZE
     )
-    plt.xlabel('Month', fontsize=14, fontweight='bold')
+    
+    # Labeling based on whether the index is months or years
+    x_label = 'Month' if 'month' in sentiment_counts.index.names else 'Year'
+    plt.xlabel(x_label, fontsize=14, fontweight='bold')
+    
     plt.ylabel('Number of Reviews', fontsize=14, fontweight='bold')
-    plt.title('Total Reviews by Month and Sentiment', fontsize=16, fontweight='bold')
+    
+    # Title changes based on the time period
+    title = f'Total Reviews ({len(year_reviews)}) by {x_label} and Sentiment ({chosen_year})'
+    plt.title(title, fontsize=16, fontweight='bold')
+    
     plt.legend(title='Sentiment', fontsize=12)
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
     return plt.gcf()
+
+
 
 # Function to generate the average ratings plot
 def plot_avg_ratings(year_reviews, chosen_year):
@@ -170,7 +242,7 @@ def show_page1(event=None):
     main_area.clear()  # Clear previous content
     
     year_reviews, sentiment_counts = get_sentiment_analysis(reviews_df, chosen_year)
-    main_area.append(pn.pane.Matplotlib(plot_monthly_sentiment(sentiment_counts), height=600))  # Plot sentiment analysis
+    main_area.append(pn.pane.Matplotlib(plot_monthly_sentiment(sentiment_counts, year_reviews, chosen_year), height=600))  # Pass year_reviews and chosen_year
 
 def show_page2(event=None):
     chosen_year = year_selector.value  # Get the selected year from the widget
@@ -195,11 +267,16 @@ def show_home_page(event=None):
     chosen_year = year_selector.value  # Get the selected year from the widget
     main_area.clear()  # Clear previous content
     
+    # Add the overall rating at the top of the home page
+    main_area.append(rating_display)  # Display overall rating
+    main_area.append(overall_category_ratings)
+
+    # Display plots for sentiment, average ratings, traveler sentiments, and seat type ratings
     year_reviews, sentiment_counts = get_sentiment_analysis(reviews_df, chosen_year)
-    main_area.append(pn.pane.Matplotlib(plot_monthly_sentiment(sentiment_counts), height=400))  # Plot sentiment analysis
+    main_area.append(pn.pane.Matplotlib(plot_monthly_sentiment(sentiment_counts, year_reviews, chosen_year), height=400))  # Pass year_reviews and chosen_year
     main_area.append(pn.pane.Matplotlib(plot_avg_ratings(year_reviews, chosen_year), height=400))  # Plot average ratings
-    main_area.append(pn.pane.Matplotlib(plot_traveller_sentiments(year_reviews, chosen_year), height=600))
-    main_area.append(pn.pane.Matplotlib(plot_seat_type_ratings(year_reviews, chosen_year), height=600))
+    main_area.append(pn.pane.Matplotlib(plot_traveller_sentiments(year_reviews, chosen_year), height=600))  # Plot sentiment by traveler type
+    main_area.append(pn.pane.Matplotlib(plot_seat_type_ratings(year_reviews, chosen_year), height=600))  # Plot average ratings by seat type
 
 # Attach callbacks to buttons
 button_home.on_click(lambda event: set_current_page('home'))
