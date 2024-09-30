@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import holoviews as hv
 
-# Load the data
+
 csv_file = 'nz_reviews_with_routes.csv'  
 reviews_df = pd.read_csv(csv_file)
 
