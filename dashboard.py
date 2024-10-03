@@ -3,12 +3,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
+from collections import Counter
+from nltk.util import ngrams
+import re
+from PIL import Image
+from wordcloud import WordCloud
 
 # Ensure Panel is using the latest template
 pn.extension()
 
-########################### LOAD DATASET ##################
+############################ LOAD DATASETS ############################
 # Set the CSV file path and year for analysis
 csv_file = '/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/nz_reviews_with_routes.csv'
 
@@ -18,8 +24,6 @@ reviews_df = pd.read_csv(csv_file)
 # Convert date column to datetime and extract the year
 reviews_df['date'] = pd.to_datetime(reviews_df['date'], format='%Y-%m-%d')
 reviews_df['year'] = reviews_df['date'].dt.year
-
-# Extract the month names
 reviews_df['month'] = reviews_df['date'].dt.strftime('%B')
 
 # Available years for dropdown
@@ -29,11 +33,11 @@ available_years = [str(year) for year in sorted(reviews_df['year'].unique())] + 
 PLOT_SIZE = (10, 6)
 
 ############################ OVERALL RESULTS ############################
-all_reviews = "air_nz_cleaned_data.csv"
-all_reviews = pd.read_csv(all_reviews)
+#all_reviews = "air_nz_cleaned_data.csv"
+#all_reviews = pd.read_csv(all_reviews)
 
 # Overall average rating
-average_rating = all_reviews['rating'].mean()
+average_rating = reviews_df['rating'].mean()
 
 rating_html = """
 <div style="text-align: center; font-size: 24px; color: #333; background-color: #f8f9fa; border-radius: 8px; padding: 10px;">
@@ -48,7 +52,7 @@ rating_columns = ['seat_comfort', 'cabin_staff_service', 'food_&_beverages', 'gr
                   'wifi_&_connectivity', 'value_for_money', 'inflight_entertainment']
 
 # Example average ratings by category (replace with actual values from your data)
-average_ratings_by_category = np.ceil(all_reviews[rating_columns].mean())
+average_ratings_by_category = np.ceil(reviews_df[rating_columns].mean())
 
 top_5_ratings = average_ratings_by_category.sort_values(ascending=False).head(5)
 
@@ -88,12 +92,12 @@ overall_category_ratings = pn.pane.HTML(html_content, width=500)
 ############################ WIDGET FOR YEAR SELECTION ############################
 year_selector = pn.widgets.Select(name='Select Year', options=available_years, value='ALL', sizing_mode='stretch_width')
 
+############################ CREATE CHARTS ############################
 # Variable to track current page (sentiment analysis, ratings, or home)
 current_page = 'home'
 
 # Ratings converted to numeric if they are in string format
 reviews_df['rating'] = pd.to_numeric(reviews_df['rating'], errors='coerce')
-
 
 def get_sentiment_analysis(reviews_df, chosen_year):
     if chosen_year == 'ALL':
@@ -141,7 +145,6 @@ def plot_monthly_sentiment(sentiment_counts, year_reviews, chosen_year):
     return plt.gcf()
 
 
-
 # Function to generate the average ratings plot
 def plot_avg_ratings(year_reviews, chosen_year):
     rating_columns = ['seat_comfort', 'cabin_staff_service', 'food_&_beverages', 'ground_service', 
@@ -176,7 +179,7 @@ def plot_traveller_sentiments(year_reviews, chosen_year):
     num_travellers = len(traveller_types)
     rows = 2
     cols = 2
-    fig, axes = plt.subplots(rows, cols, figsize=(12, 12))
+    fig, axes = plt.subplots(rows, cols, figsize=(14, 14))
 
     # Flatten axes array for easy indexing
     axes = axes.flatten()
@@ -213,9 +216,9 @@ def plot_seat_type_ratings(year_reviews, chosen_year):
     plt.figure(figsize=PLOT_SIZE)
 
     # Create a bar plot to visualize the mean ratings by seat type
-    sns.barplot(x='seat_type', y='mean', data=seat_rating_summary, palette='coolwarm')
 
-    # Add labels and title
+    # Create the barplot
+    sns.barplot(x='seat_type', y='mean', data=seat_rating_summary, hue='seat_type', palette='coolwarm')
     plt.title(f'Average Ratings by Seat Type ({chosen_year})')
     plt.xlabel('Seat Type')
     plt.ylabel('Average Rating')
@@ -223,6 +226,122 @@ def plot_seat_type_ratings(year_reviews, chosen_year):
     # Display the plot
     plt.tight_layout()
     return plt.gcf()
+
+# Initialize stop words and lemmatizer
+stop_words = set(stopwords.words('english'))
+lemmatizer = WordNetLemmatizer()
+
+# Common words to exclude from analysis
+excluded_terms = ["air_new_zealand", "flight", "auckland", "christchurch", "wellington", 
+                  "new", "zealand", "air", "nz", "even_though", "via", "av", "sec", "could"]
+
+# Function to preprocess text
+def preprocess_text(text):
+    text = text.lower()
+    text = re.sub(r'[^\w\s]', '', text)
+    text = re.sub(r'\d+', '', text)
+    text = " ".join([lemmatizer.lemmatize(word) for word in text.split() if word not in stop_words])
+    return text
+
+# Load the airplane mask image
+mask = np.array(Image.open('/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/airplane-vector-36294843 copy.jpg'))
+
+# Function to generate n-grams
+def generate_ngrams(text, n=3):
+    words = text.split()
+    ngrams_list = ["_".join(ngram) for ngram in ngrams(words, n)]
+    return ngrams_list
+
+# Function to get top N n-grams while excluding certain terms
+def get_top_n_ngrams(sentiment_reviews, n=20):
+    all_ngrams = []
+    for review in sentiment_reviews:
+        all_ngrams.extend(generate_ngrams(review)) 
+    
+    # Remove excluded terms
+    filtered_ngrams = [ngram for ngram in all_ngrams if all(term not in ngram for term in excluded_terms)]
+    
+    # Count frequencies of remaining n-grams
+    ngram_freq = Counter(filtered_ngrams)
+    return ngram_freq.most_common(n)
+
+# Preprocess the reviews
+reviews_df['cleaned_review'] = reviews_df['review_content'].apply(preprocess_text)
+
+# Get the top n-grams for each sentiment
+positive_reviews = reviews_df[reviews_df['vader_sentiment'] == 'Positive']['cleaned_review']
+negative_reviews = reviews_df[reviews_df['vader_sentiment'] == 'Negative']['cleaned_review']
+neutral_reviews = reviews_df[reviews_df['vader_sentiment'] == 'Neutral']['cleaned_review']
+
+top_positive_ngrams = get_top_n_ngrams(positive_reviews, 20)
+top_negative_ngrams = get_top_n_ngrams(negative_reviews, 20)
+top_neutral_ngrams = get_top_n_ngrams(neutral_reviews, 10)
+
+# Load the airplane mask image
+mask = np.array(Image.open('/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/airplane-vector-36294843 copy.jpg'))
+
+def preprocess_ngrams(ngram_freq):
+    word_list = []
+    for ngram, freq in ngram_freq:
+        words = ngram.split('_')
+        word_list.extend(words * freq)
+    return Counter(word_list)
+
+def plot_wordcloud(ngram_freq, title, mask, ax):
+    if not ngram_freq:  
+        ax.set_title(f'Word Cloud for {title}')
+        ax.axis('off')  # Hide axis if no n-grams
+        return
+    
+    # Preprocess n-grams to individual words
+    word_freq_dict = preprocess_ngrams(ngram_freq)
+    
+    # Create WordCloud
+    wordcloud = WordCloud(width=800, height=400, background_color='white', mask=mask).generate_from_frequencies(word_freq_dict)
+    
+    ax.imshow(wordcloud, interpolation='bilinear')
+    ax.axis('off')  # Hide axes
+    ax.set_title(f'Word Cloud for {title}')
+
+def plot_ngrams(ngram_freq, title, ax):
+    if not ngram_freq:
+        ax.set_title(f'Top N-grams for {title}')
+        ax.axis('off')  # Hide axis if no n-grams
+        return
+    
+    ngrams, counts = zip(*ngram_freq)
+    ax.barh(ngrams, counts, color='skyblue')
+    ax.set_title(f'Top N-grams for {title}')
+    ax.invert_yaxis()  # Invert y-axis to have the highest count on top
+    ax.set_xlabel('Frequency')
+
+def plot_reviews(positive_ngrams, negative_ngrams, neutral_ngrams, mask=None):
+    """
+    Plots the n-grams and word clouds for positive, negative, and neutral reviews.
+    
+    Parameters:
+    - positive_ngrams: List of tuples (n-gram, frequency) for positive reviews
+    - negative_ngrams: List of tuples (n-gram, frequency) for negative reviews
+    - neutral_ngrams: List of tuples (n-gram, frequency) for neutral reviews
+    - mask: (Optional) Mask for the word cloud shape
+    """
+    if positive_ngrams:
+        fig, axes = plt.subplots(1, 2, figsize=(20, 8))
+        plot_wordcloud(positive_ngrams, 'Positive Reviews', mask, axes[0])
+        plot_ngrams(positive_ngrams, 'Positive Reviews', axes[1])
+        plt.tight_layout()
+
+    if negative_ngrams:
+        fig, axes = plt.subplots(1, 2, figsize=(20, 8))
+        plot_wordcloud(negative_ngrams, 'Negative Reviews', mask, axes[0])
+        plot_ngrams(negative_ngrams, 'Negative Reviews', axes[1])
+        plt.tight_layout()
+
+    if neutral_ngrams:
+        fig, axes = plt.subplots(1, 2, figsize=(20, 8))
+        plot_wordcloud(neutral_ngrams, 'Neutral Reviews', mask, axes[0])
+        plot_ngrams(neutral_ngrams, 'Neutral Reviews', axes[1])
+        plt.tight_layout()
 
 
 ############################# WIDGETS & CALLBACK ###########################################
@@ -232,51 +351,105 @@ button1 = pn.widgets.Button(name="Overall Sentiment Analysis", button_type="prim
 button2 = pn.widgets.Button(name="Average Ratings per Category", button_type="primary")
 button3 = pn.widgets.Button(name="Sentiment by Traveler Type", button_type="primary")
 button4 = pn.widgets.Button(name="Average Ratings by Seat Type", button_type="primary")
+button5 = pn.widgets.Button(name="N-gram Analysis by Sentiment", button_type="primary")
 
 # Create an area to display the content for different pages
 main_area = pn.Column()
 
 # Define the callback functions that respect the selected year
 def show_page1(event=None):
-    chosen_year = year_selector.value  # Get the selected year from the widget
-    main_area.clear()  # Clear previous content
+    chosen_year = year_selector.value  
+    main_area.clear() 
     
     year_reviews, sentiment_counts = get_sentiment_analysis(reviews_df, chosen_year)
     main_area.append(pn.pane.Matplotlib(plot_monthly_sentiment(sentiment_counts, year_reviews, chosen_year), height=600))  # Pass year_reviews and chosen_year
 
 def show_page2(event=None):
-    chosen_year = year_selector.value  # Get the selected year from the widget
+    chosen_year = year_selector.value 
     year_reviews, _ = get_sentiment_analysis(reviews_df, chosen_year)
     main_area.clear()
     main_area.append(pn.pane.Matplotlib(plot_avg_ratings(year_reviews, chosen_year), height=600))  # Plot average ratings
 
 def show_page3(event=None):
     """Display sentiment distribution by traveler type."""
-    chosen_year = year_selector.value  # Get the selected year from the widget
+    chosen_year = year_selector.value 
     year_reviews, _ = get_sentiment_analysis(reviews_df, chosen_year)
     main_area.clear()
     main_area.append(pn.pane.Matplotlib(plot_traveller_sentiments(year_reviews, chosen_year), height=600))
 
 def show_page4(event=None):
-    chosen_year = year_selector.value  # Get the selected year from the widget
-    year_reviews, _ = get_sentiment_analysis(reviews_df, chosen_year)  # Get reviews for the selected year
+    chosen_year = year_selector.value  
+    year_reviews, _ = get_sentiment_analysis(reviews_df, chosen_year) 
     main_area.clear()
     main_area.append(pn.pane.Matplotlib(plot_seat_type_ratings(year_reviews, chosen_year), height=600))  # Plot average ratings by seat type
 
+def show_page5(event=None):
+    # Get the selected year and sentiment analysis for that year
+    chosen_year = year_selector.value
+    year_reviews, _ = get_sentiment_analysis(reviews_df, chosen_year)
+
+    # Generate top N-grams for each sentiment (positive, negative, neutral)
+    positive_reviews = year_reviews[year_reviews['vader_sentiment'] == 'Positive']['cleaned_review']
+    negative_reviews = year_reviews[year_reviews['vader_sentiment'] == 'Negative']['cleaned_review']
+    neutral_reviews = year_reviews[year_reviews['vader_sentiment'] == 'Neutral']['cleaned_review']
+
+    top_positive_ngrams = get_top_n_ngrams(positive_reviews, 20)
+    top_negative_ngrams = get_top_n_ngrams(negative_reviews, 20)
+    top_neutral_ngrams = get_top_n_ngrams(neutral_reviews, 10)
+
+    # Clear the current main area panel
+    main_area.clear()
+
+    # Plot and append the figures for positive, negative, and neutral n-grams
+    if top_positive_ngrams:
+        plot_reviews(top_positive_ngrams, None, None, mask=mask)  # Positive n-grams
+        main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
+
+    if top_negative_ngrams:
+        plot_reviews(None, top_negative_ngrams, None, mask=mask)  # Negative n-grams
+        main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
+
+    if top_neutral_ngrams:
+        plot_reviews(None, None, top_neutral_ngrams, mask=mask)  # Neutral n-grams
+        main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
+
 def show_home_page(event=None):
-    chosen_year = year_selector.value  # Get the selected year from the widget
-    main_area.clear()  # Clear previous content
+    chosen_year = year_selector.value  
+    main_area.clear()  
     
     # Add the overall rating at the top of the home page
-    main_area.append(rating_display)  # Display overall rating
+    main_area.append(rating_display)  
     main_area.append(overall_category_ratings)
 
     # Display plots for sentiment, average ratings, traveler sentiments, and seat type ratings
     year_reviews, sentiment_counts = get_sentiment_analysis(reviews_df, chosen_year)
-    main_area.append(pn.pane.Matplotlib(plot_monthly_sentiment(sentiment_counts, year_reviews, chosen_year), height=400))  # Pass year_reviews and chosen_year
-    main_area.append(pn.pane.Matplotlib(plot_avg_ratings(year_reviews, chosen_year), height=400))  # Plot average ratings
-    main_area.append(pn.pane.Matplotlib(plot_traveller_sentiments(year_reviews, chosen_year), height=600))  # Plot sentiment by traveler type
-    main_area.append(pn.pane.Matplotlib(plot_seat_type_ratings(year_reviews, chosen_year), height=600))  # Plot average ratings by seat type
+    main_area.append(pn.pane.Matplotlib(plot_monthly_sentiment(sentiment_counts, year_reviews, chosen_year), height=400))
+    main_area.append(pn.pane.Matplotlib(plot_avg_ratings(year_reviews, chosen_year), height=400))
+    main_area.append(pn.pane.Matplotlib(plot_traveller_sentiments(year_reviews, chosen_year), height=600))
+    main_area.append(pn.pane.Matplotlib(plot_seat_type_ratings(year_reviews, chosen_year), height=600))
+
+    # Generate top N-grams for all sentiments to display on the home page
+    positive_reviews = year_reviews[year_reviews['vader_sentiment'] == 'Positive']['cleaned_review']
+    negative_reviews = year_reviews[year_reviews['vader_sentiment'] == 'Negative']['cleaned_review']
+    neutral_reviews = year_reviews[year_reviews['vader_sentiment'] == 'Neutral']['cleaned_review']
+
+    top_positive_ngrams = get_top_n_ngrams(positive_reviews, 20)
+    top_negative_ngrams = get_top_n_ngrams(negative_reviews, 20)
+    top_neutral_ngrams = get_top_n_ngrams(neutral_reviews, 10)
+
+    # Plot the n-grams and word clouds for the home page
+    if top_positive_ngrams:
+        plot_reviews(top_positive_ngrams, None, None, mask=mask)  # Positive n-grams
+        main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
+
+    if top_negative_ngrams:
+        plot_reviews(None, top_negative_ngrams, None, mask=mask)  # Negative n-grams
+        main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
+
+    if top_neutral_ngrams:
+        plot_reviews(None, None, top_neutral_ngrams, mask=mask)  # Neutral n-grams
+        main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
+
 
 # Attach callbacks to buttons
 button_home.on_click(lambda event: set_current_page('home'))
@@ -284,6 +457,8 @@ button1.on_click(lambda event: set_current_page('page1'))
 button2.on_click(lambda event: set_current_page('page2'))
 button3.on_click(lambda event: set_current_page('page3'))
 button4.on_click(lambda event: set_current_page('page4'))
+button5.on_click(lambda event: set_current_page('page5'))
+
 
 # Set the current page and update content based on year and active page
 def set_current_page(page):
@@ -299,6 +474,8 @@ def set_current_page(page):
         show_page3()
     elif page == 'page4':
         show_page4()
+    elif page == 'page5':
+        show_page5()
 
 
 # Automatically update the page content when the year selector is changed
@@ -313,18 +490,21 @@ def update_on_year_change(event):
         show_page3()
     elif current_page == 'page4':
         show_page4()
+    elif current_page == 'page5':
+        show_page5()
 
 year_selector.param.watch(update_on_year_change, 'value')
 
 #################### SIDEBAR LAYOUT ##########################
 sidebar = pn.Column(
     pn.pane.Markdown("## Pages"),
-    year_selector,  # Add year selector to the sidebar
-    button_home,  # Add Home button to the sidebar
+    year_selector,  
+    button_home,  
     button1,
     button2,
     button3,
     button4,
+    button5,
     styles={"width": "100%", "padding": "15px"}
 )
 
