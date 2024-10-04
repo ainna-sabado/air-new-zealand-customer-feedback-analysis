@@ -10,9 +10,14 @@ from nltk.util import ngrams
 import re
 from PIL import Image
 from wordcloud import WordCloud
+import holoviews as hv
+from bokeh.models import HoverTool
+
 
 # Ensure Panel is using the latest template
 pn.extension()
+
+hv.extension('bokeh')
 
 ############################ LOAD DATASETS ############################
 # Set the CSV file path and year for analysis
@@ -118,32 +123,44 @@ def get_sentiment_analysis(reviews_df, chosen_year):
     return year_reviews, sentiment_counts
 
 # Visualization for monthly or yearly sentiment
-def plot_monthly_sentiment(sentiment_counts, year_reviews, chosen_year):
+def plot_monthly_sentiment_hv(sentiment_counts, chosen_year):
+    sentiment_counts = sentiment_counts.reset_index()
+
+    # Melt the dataframe for easier plotting
+    sentiment_counts_melted = sentiment_counts.melt(
+        id_vars=['month' if 'month' in sentiment_counts.columns else 'year'], 
+        var_name='Sentiment', 
+        value_name='Count'
+    )
+
+    # Define the color mapping for the sentiments
     color_map = {'Negative': 'red', 'Neutral': 'orange', 'Positive': 'green'}
-    
-    ax = sentiment_counts.plot(
-        kind='line',
-        color=[color_map.get(col, 'black') for col in sentiment_counts.columns],
-        marker='o',
-        linewidth=2,
-        figsize=PLOT_SIZE
+
+    # Create an overlay of separate Curves for each sentiment type
+    sentiment_plots = hv.NdOverlay({
+        sentiment: hv.Curve(
+            sentiment_counts_melted[sentiment_counts_melted['Sentiment'] == sentiment], 
+            kdims=['month' if 'month' in sentiment_counts_melted.columns else 'year'], 
+            vdims=['Count'],
+            label=sentiment
+        ).opts(
+            color=color_map[sentiment], line_width=2
+        )
+        for sentiment in sentiment_counts_melted['Sentiment'].unique()
+    })
+
+    # Add hover tool for interactivity
+    sentiment_plots = sentiment_plots.opts(
+        xlabel='Month' if 'month' in sentiment_counts.index.names else 'Year',
+        ylabel='Number of Reviews',
+        tools=[HoverTool(tooltips=[('Month/Year', '@x'), ('Count', '@y')])],
+        show_legend=True,
+        legend_position='top_left',
+        width=1000,  # Specify fixed width
+        height=600  # Specify fixed height
     )
     
-    # Labeling based on whether the index is months or years
-    x_label = 'Month' if 'month' in sentiment_counts.index.names else 'Year'
-    plt.xlabel(x_label, fontsize=14, fontweight='bold')
-    
-    plt.ylabel('Number of Reviews', fontsize=14, fontweight='bold')
-    
-    # Title changes based on the time period
-    title = f'Total Reviews ({len(year_reviews)}) by {x_label} and Sentiment ({chosen_year})'
-    plt.title(title, fontsize=16, fontweight='bold')
-    
-    plt.legend(title='Sentiment', fontsize=12)
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    return plt.gcf()
-
+    return sentiment_plots
 
 # Function to generate the average ratings plot
 def plot_avg_ratings(year_reviews, chosen_year):
@@ -362,7 +379,10 @@ def show_page1(event=None):
     main_area.clear() 
     
     year_reviews, sentiment_counts = get_sentiment_analysis(reviews_df, chosen_year)
-    main_area.append(pn.pane.Matplotlib(plot_monthly_sentiment(sentiment_counts, year_reviews, chosen_year), height=600))  # Pass year_reviews and chosen_year
+    
+    # Use holoviews instead of matplotlib
+    sentiment_plots = plot_monthly_sentiment_hv(sentiment_counts, chosen_year)
+    main_area.append(pn.pane.HoloViews(sentiment_plots))
 
 def show_page2(event=None):
     chosen_year = year_selector.value 
@@ -417,16 +437,20 @@ def show_home_page(event=None):
     chosen_year = year_selector.value  
     main_area.clear()  
     
-    # Add the overall rating at the top of the home page
-    main_area.append(rating_display)  
-    main_area.append(overall_category_ratings)
+    # Create a GridSpec layout
+    grid = pn.GridSpec(sizing_mode='stretch_both')
 
-    # Display plots for sentiment, average ratings, traveler sentiments, and seat type ratings
+    # Add the overall rating at the top of the home page in a single cell
+    grid[0, 2] = pn.Column(rating_display, overall_category_ratings)  
+
+    # Display holoviews plots for sentiment analysis
     year_reviews, sentiment_counts = get_sentiment_analysis(reviews_df, chosen_year)
-    main_area.append(pn.pane.Matplotlib(plot_monthly_sentiment(sentiment_counts, year_reviews, chosen_year), height=400))
-    main_area.append(pn.pane.Matplotlib(plot_avg_ratings(year_reviews, chosen_year), height=400))
-    main_area.append(pn.pane.Matplotlib(plot_traveller_sentiments(year_reviews, chosen_year), height=600))
-    main_area.append(pn.pane.Matplotlib(plot_seat_type_ratings(year_reviews, chosen_year), height=600))
+    sentiment_plots = plot_monthly_sentiment_hv(sentiment_counts, chosen_year)
+    grid[0, 0:1] = pn.pane.HoloViews(sentiment_plots, height=500, width=900)  
+    
+    grid[2, 0] = pn.pane.Matplotlib(plot_avg_ratings(year_reviews, chosen_year), height=400)  
+    grid[2, 1] = pn.pane.Matplotlib(plot_traveller_sentiments(year_reviews, chosen_year), height=600)  
+    grid[2, 2] = pn.pane.Matplotlib(plot_seat_type_ratings(year_reviews, chosen_year), height=600)
 
     # Generate top N-grams for all sentiments to display on the home page
     positive_reviews = year_reviews[year_reviews['vader_sentiment'] == 'Positive']['cleaned_review']
@@ -440,16 +464,18 @@ def show_home_page(event=None):
     # Plot the n-grams and word clouds for the home page
     if top_positive_ngrams:
         plot_reviews(top_positive_ngrams, None, None, mask=mask)  # Positive n-grams
-        main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
+        grid[3, 0] = pn.pane.Matplotlib(plt.gcf(), height=600)
 
     if top_negative_ngrams:
         plot_reviews(None, top_negative_ngrams, None, mask=mask)  # Negative n-grams
-        main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
+        grid[3, 1] = pn.pane.Matplotlib(plt.gcf(), height=600)
 
     if top_neutral_ngrams:
         plot_reviews(None, None, top_neutral_ngrams, mask=mask)  # Neutral n-grams
-        main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
+        grid[3, 2] = pn.pane.Matplotlib(plt.gcf(), height=600)
 
+    # Append the grid layout to the main area
+    main_area.append(grid)
 
 # Attach callbacks to buttons
 button_home.on_click(lambda event: set_current_page('home'))
@@ -495,6 +521,7 @@ def update_on_year_change(event):
 
 year_selector.param.watch(update_on_year_change, 'value')
 
+
 #################### SIDEBAR LAYOUT ##########################
 sidebar = pn.Column(
     pn.pane.Markdown("## Pages"),
@@ -520,7 +547,7 @@ dashboard = pn.template.BootstrapTemplate(
 )
 
 # Serve the Panel app
-dashboard.servable()
+dashboard.show()
 
 # Initialize with the default Home page
 set_current_page('home')
