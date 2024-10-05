@@ -285,20 +285,21 @@ def plot_seat_type_ratings(year_reviews, chosen_year):
     # Sort the values to see which seat types have the highest/lowest ratings
     seat_rating_summary = seat_rating_summary.sort_values(by='mean', ascending=False)
 
-    # Set the figure size for better readability
-    plt.figure(figsize=PLOT_SIZE)
+    # Create a bar plot using HoloViews
+    bar_plot = hv.Bars(seat_rating_summary, kdims=['seat_type'], vdims=['mean']).opts(
+        title=f'Average Ratings by Seat Type ({chosen_year})',
+        xlabel='Seat Type',
+        ylabel='Average Rating',
+        color='seat_type',
+        cmap='coolwarm',
+        tools=['hover'],
+        width=600,
+        height=400
+    )
 
-    # Create a bar plot to visualize the mean ratings by seat type
+    # Return the HoloViews plot wrapped in a Panel pane
+    return bar_plot
 
-    # Create the barplot
-    sns.barplot(x='seat_type', y='mean', data=seat_rating_summary, hue='seat_type', palette='coolwarm')
-    plt.title(f'Average Ratings by Seat Type ({chosen_year})')
-    plt.xlabel('Seat Type')
-    plt.ylabel('Average Rating')
-
-    # Display the plot
-    plt.tight_layout()
-    return plt.gcf()
 
 # Initialize stop words and lemmatizer
 stop_words = set(stopwords.words('english'))
@@ -458,7 +459,7 @@ def show_page4(event=None):
     chosen_year = year_selector.value  
     year_reviews, _ = get_sentiment_analysis(reviews_df, chosen_year) 
     main_area.clear()
-    main_area.append(pn.pane.Matplotlib(plot_seat_type_ratings(year_reviews, chosen_year), height=600))  # Plot average ratings by seat type
+    main_area.append(pn.pane.HoloViews(plot_seat_type_ratings(year_reviews, chosen_year), height=600))  # Plot average ratings by seat type
 
 def show_page5(event=None):
     # Get the selected year and sentiment analysis for that year
@@ -503,34 +504,12 @@ def show_home_page(event=None):
     # Display holoviews plots for sentiment analysis
     year_reviews, sentiment_counts = get_sentiment_analysis(reviews_df, chosen_year)
     sentiment_plots = plot_monthly_sentiment(sentiment_counts, chosen_year)
-    grid[0, 0:1] = pn.pane.HoloViews(sentiment_plots, height=500, width=900)  
+    grid[0, 0] = pn.pane.HoloViews(sentiment_plots, height=500, width=900)  
     
     avg_ratings_plot = plot_avg_ratings(year_reviews, chosen_year)
-    grid[2, 0] = pn.pane.HoloViews(plot_avg_ratings(year_reviews, chosen_year), height=400)  
-    grid[2, 1] = pn.pane.Matplotlib(plot_traveller_sentiments(year_reviews, chosen_year), height=600)  
-    grid[2, 2] = pn.pane.Matplotlib(plot_seat_type_ratings(year_reviews, chosen_year), height=600)
-
-    # Generate top N-grams for all sentiments to display on the home page
-    positive_reviews = year_reviews[year_reviews['vader_sentiment'] == 'Positive']['cleaned_review']
-    negative_reviews = year_reviews[year_reviews['vader_sentiment'] == 'Negative']['cleaned_review']
-    neutral_reviews = year_reviews[year_reviews['vader_sentiment'] == 'Neutral']['cleaned_review']
-
-    top_positive_ngrams = get_top_n_ngrams(positive_reviews, 20)
-    top_negative_ngrams = get_top_n_ngrams(negative_reviews, 20)
-    top_neutral_ngrams = get_top_n_ngrams(neutral_reviews, 10)
-
-    # Plot the n-grams and word clouds for the home page
-    if top_positive_ngrams:
-        plot_reviews(top_positive_ngrams, None, None, mask=mask)  # Positive n-grams
-        grid[3, 0] = pn.pane.Matplotlib(plt.gcf(), height=600)
-
-    if top_negative_ngrams:
-        plot_reviews(None, top_negative_ngrams, None, mask=mask)  # Negative n-grams
-        grid[3, 1] = pn.pane.Matplotlib(plt.gcf(), height=600)
-
-    if top_neutral_ngrams:
-        plot_reviews(None, None, top_neutral_ngrams, mask=mask)  # Neutral n-grams
-        grid[3, 2] = pn.pane.Matplotlib(plt.gcf(), height=600)
+    grid[1, 0] = pn.pane.HoloViews(plot_avg_ratings(year_reviews, chosen_year), height=400)  
+    grid[1, 1] = pn.pane.Matplotlib(plot_traveller_sentiments(year_reviews, chosen_year), height=600)  
+    grid[1, 2] = pn.pane.HoloViews(plot_seat_type_ratings(year_reviews, chosen_year), height=600)
 
     # Append the grid layout to the main area
     main_area.append(grid)
