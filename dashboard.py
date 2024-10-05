@@ -123,7 +123,7 @@ def get_sentiment_analysis(reviews_df, chosen_year):
     return year_reviews, sentiment_counts
 
 # Visualization for monthly or yearly sentiment
-def plot_monthly_sentiment_hv(sentiment_counts, chosen_year):
+def plot_monthly_sentiment(sentiment_counts, chosen_year):
     sentiment_counts = sentiment_counts.reset_index()
 
     # Melt the dataframe for easier plotting
@@ -163,23 +163,79 @@ def plot_monthly_sentiment_hv(sentiment_counts, chosen_year):
     return sentiment_plots
 
 # Function to generate the average ratings plot
+# Function to generate the average ratings plot
 def plot_avg_ratings(year_reviews, chosen_year):
-    rating_columns = ['seat_comfort', 'cabin_staff_service', 'food_&_beverages', 'ground_service', 
-                      'value_for_money', 'inflight_entertainment', 'wifi_&_connectivity']
-    average_ratings = year_reviews.groupby(['is_domestic'])[rating_columns].mean().reset_index()
-    average_ratings_melted = average_ratings.melt(id_vars=['is_domestic'], value_vars=rating_columns, var_name='category', value_name='average_rating')
+    rating_columns = [
+        'seat_comfort', 'cabin_staff_service', 'food_&_beverages', 
+        'ground_service', 'value_for_money', 'inflight_entertainment', 
+        'wifi_&_connectivity'
+    ]
     
-    plt.figure(figsize=PLOT_SIZE)
-    sns.barplot(data=average_ratings_melted, x='category', y='average_rating', hue='is_domestic')
-    plt.title(f'Average Ratings per Category: Domestic vs International Routes ({chosen_year})', fontsize=16, fontweight='bold')
-    plt.xlabel('Category', fontsize=14)
-    plt.ylabel('Average Rating', fontsize=14)
-    plt.xticks(rotation=45, ha='right')
+    # Calculate average ratings
+    average_ratings = year_reviews.groupby('is_domestic')[rating_columns].mean().reset_index()
     
-    handles, labels = plt.gca().get_legend_handles_labels()
-    plt.legend(handles=handles, labels=['Domestic' if label == 'True' else 'International' for label in labels], title='Route Type', title_fontsize='13', fontsize='12')
-    plt.tight_layout()
-    return plt.gcf()
+    # Melt the DataFrame for easier plotting
+    average_ratings_melted = average_ratings.melt(
+        id_vars='is_domestic', 
+        value_vars=rating_columns, 
+        var_name='category', 
+        value_name='average_rating'
+    )
+    
+    # Map 'is_domestic' to readable route types
+    average_ratings_melted['Route Type'] = average_ratings_melted['is_domestic'].map({True: 'Domestic', False: 'International'})
+    
+    # Format 'category' to replace underscores with spaces and capitalize each word
+    average_ratings_melted['category'] = (
+        average_ratings_melted['category']
+        .str.replace('_', ' ')  # Replace underscores with spaces
+        .str.title()  # Capitalize each word
+    )
+    
+    # Sort the data so that bars with higher average ratings are plotted first
+    average_ratings_melted = average_ratings_melted.sort_values(by=['category', 'average_rating'], ascending=[True, False])
+    
+    # Define color mapping
+    color_mapping = {'Domestic': '#1f77b4', 'International': '#ff7f0e'}
+    
+    # Ensure categories follow the original order
+    average_ratings_melted['category'] = pd.Categorical(
+        average_ratings_melted['category'], 
+        categories=[col.replace('_', ' ').title() for col in rating_columns],  # Keep the original order
+        ordered=True
+    )
+    
+    # Create the bar plot using Holoviews
+    bars = hv.Bars(
+        average_ratings_melted, 
+        kdims=['category'], 
+        vdims=['average_rating', 'Route Type']
+    )
+    
+    # Set options for the bar plot
+    bars.opts(
+        ylabel='Category',  # Swap to 'ylabel'
+        xlabel='Average Rating',  # Swap to 'xlabel'
+        color='Route Type',
+        cmap=list(color_mapping.values()),
+        legend_position='top_right',
+        show_legend=True,
+        width=800,
+        height=500,
+        tools=['hover'],
+        hover_tooltips=[
+            ('Category', '@category'), 
+            ('Route Type', '@{Route Type}'), 
+            ('Average Rating', '@{average_rating}{0.2f}')  # Format to 2 decimal places
+        ],
+        bar_width=0.9,
+        line_color='black',
+        line_width=1,
+        title=f'Average Ratings per Category: Domestic vs International ({chosen_year})',
+        invert_axes=True  # Make the bars horizontal
+    )
+
+    return bars
 
 def plot_traveller_sentiments(year_reviews, chosen_year):
     """
@@ -381,14 +437,15 @@ def show_page1(event=None):
     year_reviews, sentiment_counts = get_sentiment_analysis(reviews_df, chosen_year)
     
     # Use holoviews instead of matplotlib
-    sentiment_plots = plot_monthly_sentiment_hv(sentiment_counts, chosen_year)
+    sentiment_plots = plot_monthly_sentiment(sentiment_counts, chosen_year)
     main_area.append(pn.pane.HoloViews(sentiment_plots))
 
 def show_page2(event=None):
     chosen_year = year_selector.value 
     year_reviews, _ = get_sentiment_analysis(reviews_df, chosen_year)
     main_area.clear()
-    main_area.append(pn.pane.Matplotlib(plot_avg_ratings(year_reviews, chosen_year), height=600))  # Plot average ratings
+    avg_ratings_plot = plot_avg_ratings(year_reviews, chosen_year)
+    main_area.append(pn.pane.HoloViews(avg_ratings_plot, height=600))
 
 def show_page3(event=None):
     """Display sentiment distribution by traveler type."""
@@ -445,10 +502,11 @@ def show_home_page(event=None):
 
     # Display holoviews plots for sentiment analysis
     year_reviews, sentiment_counts = get_sentiment_analysis(reviews_df, chosen_year)
-    sentiment_plots = plot_monthly_sentiment_hv(sentiment_counts, chosen_year)
+    sentiment_plots = plot_monthly_sentiment(sentiment_counts, chosen_year)
     grid[0, 0:1] = pn.pane.HoloViews(sentiment_plots, height=500, width=900)  
     
-    grid[2, 0] = pn.pane.Matplotlib(plot_avg_ratings(year_reviews, chosen_year), height=400)  
+    avg_ratings_plot = plot_avg_ratings(year_reviews, chosen_year)
+    grid[2, 0] = pn.pane.HoloViews(plot_avg_ratings(year_reviews, chosen_year), height=400)  
     grid[2, 1] = pn.pane.Matplotlib(plot_traveller_sentiments(year_reviews, chosen_year), height=600)  
     grid[2, 2] = pn.pane.Matplotlib(plot_seat_type_ratings(year_reviews, chosen_year), height=600)
 
