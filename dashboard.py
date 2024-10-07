@@ -20,6 +20,11 @@ import numpy as np
 import pandas as pd
 from bokeh.transform import cumsum
 
+# Define the callback functions that respect the selected year
+import time
+import threading
+
+
 # Ensure Panel is using the latest template
 pn.extension()
 
@@ -42,11 +47,11 @@ available_years = [str(year) for year in sorted(reviews_df['year'].unique())] + 
 
 
 ############################ OVERALL RESULTS ############################
-#all_reviews = "air_nz_cleaned_data.csv"
-#all_reviews = pd.read_csv(all_reviews)
+all_reviews = "air_nz_cleaned_data.csv"
+all_reviews = pd.read_csv(all_reviews)
 
 # Overall average rating
-average_rating = reviews_df['rating'].mean()
+average_rating = all_reviews['rating'].mean()
 
 rating_html = """
 <div style="text-align: center; font-size: 24px; color: #333; background-color: #f8f9fa; border-radius: 8px; padding: 10px;">
@@ -61,7 +66,7 @@ rating_columns = ['seat_comfort', 'cabin_staff_service', 'food_&_beverages', 'gr
                   'wifi_&_connectivity', 'value_for_money', 'inflight_entertainment']
 
 # Example average ratings by category (replace with actual values from your data)
-average_ratings_by_category = np.ceil(reviews_df[rating_columns].mean())
+average_ratings_by_category = np.ceil(all_reviews[rating_columns].mean())
 
 top_5_ratings = average_ratings_by_category.sort_values(ascending=False).head(5)
 
@@ -124,10 +129,13 @@ def get_sentiment_analysis(reviews_df, chosen_year):
             'July', 'August', 'September', 'October', 'November', 'December'
         ], fill_value=0)
 
-    return year_reviews, sentiment_counts
+    # Calculate total reviews for the selected year
+    total_reviews = year_reviews.shape[0]
 
-# Visualization for monthly or yearly sentiment
-def plot_monthly_sentiment(sentiment_counts, chosen_year):
+    return year_reviews, sentiment_counts, total_reviews
+
+
+def plot_monthly_sentiment(sentiment_counts, chosen_year, total_reviews):
     sentiment_counts = sentiment_counts.reset_index()
 
     # Check if 'month' is in columns or 'year', and set the corresponding id_var and kdims
@@ -166,7 +174,7 @@ def plot_monthly_sentiment(sentiment_counts, chosen_year):
         tools=[HoverTool(tooltips=[('Month/Year', '@x'), ('Count', '@y')])],
         show_legend=True,
         legend_position='top_left',
-        title=f'Total Number of Reviews by {xlabel} and Sentiment ({chosen_year})',  # Use xlabel in the title as well
+        title=f'Total Number of Reviews ({total_reviews}) by {xlabel} and Sentiment ({chosen_year})',  # Use xlabel in the title as well
         height=600,
         width=900,  # Specify fixed height
         show_grid=True  # Show the grid
@@ -213,7 +221,7 @@ def plot_avg_ratings(year_reviews, chosen_year):
     # Ensure categories follow the original order
     average_ratings_melted['category'] = pd.Categorical(
         average_ratings_melted['category'], 
-        categories=[col.replace('_', ' ').title() for col in rating_columns],  # Keep the original order
+        categories=[col.replace('_', ' ').title() for col in rating_columns], 
         ordered=True
     )
     
@@ -226,8 +234,8 @@ def plot_avg_ratings(year_reviews, chosen_year):
     
     # Set options for the bar plot
     bars.opts(
-        ylabel='Category',  # Swap to 'ylabel'
-        xlabel='Average Rating',  # Swap to 'xlabel'
+        ylabel='Average Rating', 
+        xlabel='Category',  
         color='Route Type',
         cmap=list(color_mapping.values()),
         legend_position='top_right',
@@ -243,7 +251,7 @@ def plot_avg_ratings(year_reviews, chosen_year):
         bar_width=0.9,
         line_color='black',
         line_width=1,
-        title=f'Average Ratings per Category:\nDomestic vs International ({chosen_year})',  # Newline between the title
+        title=f'Average Ratings per Category:\nDomestic vs International ({chosen_year})',  
         invert_axes=True  # Make the bars horizontal
     )
 
@@ -285,10 +293,10 @@ def plot_traveller_sentiments(year_reviews, chosen_year):
     source = ColumnDataSource(data)
 
     # Create the initial pie chart
-    pie_chart = figure(height=450, width=450, title=current_type, toolbar_location=None,
+    pie_chart = figure(height=325, width=600, title=current_type, toolbar_location=None,
                        tools="hover", tooltips="@vader_sentiment: @percentage%", x_range=(-0.5, 1.0))
 
-    pie_chart.wedge(x=0, y=1, radius=0.4, 
+    pie_chart.wedge(x=0, y=1, radius=0.3, 
                     start_angle=cumsum('angle', include_zero=True), end_angle=cumsum('angle'),
                     line_color="white", fill_color='color', legend_field='vader_sentiment', source=source)
 
@@ -472,6 +480,296 @@ def plot_reviews(positive_ngrams, negative_ngrams, neutral_ngrams, mask=None):
         plt.tight_layout()
 
 
+############################# INTERPRETATION OF RESULTS + RECOMMENDATIONS ###########################################
+def result_page1(chosen_year, total_reviews, sentiment_data, is_yearly=True):
+    analysis_output1 = []  # List to collect analysis strings
+
+    if is_yearly:
+        analysis_output1.append("## Analyzing customer sentiment trends across all years:\n")
+        
+        # Trend Analysis
+        sentiment_trends = {}
+        years = sentiment_data.index.values
+        for sentiment in sentiment_data.columns:
+            counts = sentiment_data[sentiment].values
+            trend = np.polyfit(years.flatten(), counts, 1)[0]
+            sentiment_trends[sentiment] = trend
+
+            if sentiment_trends[sentiment] > 0:
+                analysis_output1.append(f"- **{sentiment} sentiment** shows an increasing trend over the years, reflecting improving customer sentiment or service quality.\n")
+            elif sentiment_trends[sentiment] < 0:
+                analysis_output1.append(f"- **{sentiment} sentiment** shows a decreasing trend, suggesting areas where service might need improvement.\n")
+            else:
+                analysis_output1.append(f"- **{sentiment} sentiment** remains relatively stable over time.\n")
+
+        # Calculate percentage change
+        def calculate_percentage_change(data):
+            percentage_changes = {}
+            for sentiment in data.columns:
+                previous_year_values = data[sentiment].shift(1)
+                current_year_values = data[sentiment]
+
+                # Avoid division by zero
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    pct_change = np.where(previous_year_values == 0, np.nan, (current_year_values - previous_year_values) / previous_year_values * 100)
+
+                percentage_changes[sentiment] = np.nanmean(pct_change)
+            
+            return percentage_changes
+
+        percentage_changes = calculate_percentage_change(sentiment_data)
+
+        analysis_output1.append("\nYearly percentage changes in sentiment:\n")
+        for sentiment, change in percentage_changes.items():
+            if np.isnan(change):
+                analysis_output1.append(f"- **{sentiment}**: No data for the previous year to calculate change.\n")
+            else:
+                analysis_output1.append(f"- **{sentiment}**: {change:.2f}% change year-over-year\n")
+
+        # Peak and Low Points Analysis
+        max_sentiments = sentiment_data.max()
+        min_sentiments = sentiment_data.min()
+        analysis_output1.append("\nYear with highest and lowest sentiment counts:\n")
+        for sentiment in sentiment_data.columns:
+            max_year = sentiment_data[sentiment].idxmax()
+            min_year = sentiment_data[sentiment].idxmin()
+            analysis_output1.append(f"- **{sentiment} sentiment** peaked in **{max_year}** and was lowest in **{min_year}**.\n")
+
+        # Recommendations
+        analysis_output1.append("\n### Recommendations:\n")
+        analysis_output1.append("Focus on enhancing strategies in years with declining sentiments and replicate successful practices from years with rising positive sentiment.\n")
+
+    else:
+        analysis_output1.append(f"## Analyzing sentiment for the year **{chosen_year}**:\n")
+        
+        analysis_output1.append(f"- Total reviews: A total of **{total_reviews}** reviews were submitted in **{chosen_year}**.\n")
+        
+        # Determine peak and lowest months
+        total_reviews_per_month = sentiment_data.sum(axis=1)
+        peak_month = total_reviews_per_month.idxmax()
+        low_month = total_reviews_per_month.idxmin()
+        
+        if total_reviews_per_month[peak_month] > total_reviews_per_month.median():
+            analysis_output1.append(f"- **Peak month for reviews**: **{peak_month}** had the highest number of reviews, indicating high customer activity or engagement.\n")
+        else:
+            analysis_output1.append(f"- **Peak month for reviews**: **{peak_month}** was within typical activity levels for the year.\n")
+
+        analysis_output1.append(f"- **Lowest review month**: **{low_month}** had the fewest reviews. This could indicate a slower travel period or less demand.\n")
+
+        # Analyze sentiment trends across months
+        if 'Positive' in sentiment_data.columns:
+            pos_peak_month = sentiment_data['Positive'].idxmax()
+            pos_low_month = sentiment_data['Positive'].idxmin()
+            if sentiment_data['Positive'][pos_peak_month] > sentiment_data['Positive'].median():
+                analysis_output1.append(f"- **Positive sentiment**: The highest positive sentiment was recorded in **{pos_peak_month}**, indicating a period of high customer satisfaction.\n")
+            else:
+                analysis_output1.append(f"- **Positive sentiment**: Positive reviews were spread out with **{pos_peak_month}** seeing a relatively higher number.\n")
+            
+            analysis_output1.append(f"- **Lowest positive sentiment**: **{pos_low_month}** saw fewer positive reviews, which may warrant investigation into service quality during this month.\n")
+        else:
+            analysis_output1.append("- **Positive sentiment**: There were no or very few positive reviews in **{chosen_year}**.\n")
+
+        if 'Negative' in sentiment_data.columns:
+            neg_peak_month = sentiment_data['Negative'].idxmax()
+            neg_low_month = sentiment_data['Negative'].idxmin()
+            if sentiment_data['Negative'][neg_peak_month] > sentiment_data['Negative'].median():
+                analysis_output1.append(f"- **Negative sentiment**: The peak in negative sentiment occurred in **{neg_peak_month}**. This suggests a challenging period for customer satisfaction.\n")
+            else:
+                analysis_output1.append(f"- **Negative sentiment**: Negative feedback was relatively consistent, with **{neg_peak_month}** seeing a slight uptick.\n")
+            
+            analysis_output1.append(f"- **Lowest negative sentiment**: **{neg_low_month}** had the least negative sentiment, indicating better customer experience during this time.\n")
+        else:
+            analysis_output1.append(f"- **Negative sentiment**: Negative feedback was minimal or absent for **{chosen_year}**.\n")
+
+        # Check if the year saw more positive or negative reviews overall
+        total_positive = sentiment_data['Positive'].sum()
+        total_negative = sentiment_data['Negative'].sum()
+        
+        if total_positive > total_negative:
+            analysis_output1.append(f"- **Overall sentiment**: **{chosen_year}** had a predominantly positive sentiment, with customers generally expressing satisfaction.\n")
+        elif total_negative > total_positive:
+            analysis_output1.append(f"- **Overall sentiment**: **{chosen_year}** saw more negative sentiment, indicating that customers were more dissatisfied during this period.\n")
+        else:
+            analysis_output1.append(f"- **Overall sentiment**: Sentiments were balanced, with nearly equal numbers of positive and negative reviews.\n")
+        
+        analysis_output1.append("\n### Recommendations:\n")
+        analysis_output1.append("Investigate months with high negative sentiment to identify potential service issues. Also, replicate successful strategies from months with high positive sentiment.\n")
+
+    # Join all collected analysis strings into a single formatted output
+    return "\n".join(analysis_output1)
+
+
+def result_page2(reviews_df, chosen_year):
+    analysis_output2 = []  # List to collect analysis strings
+    # Separate domestic and international ratings
+    domestic_ratings = reviews_df[reviews_df['is_domestic'] == True]
+    international_ratings = reviews_df[reviews_df['is_domestic'] == False]
+
+    # Output the year of analysis
+    analysis_output2.append(f"## Analyzing customer satisfaction for domestic and international flights in **{chosen_year}**:")
+    
+    # Compare overall satisfaction
+    domestic_overall_avg = domestic_ratings[rating_columns].mean().mean()
+    international_overall_avg = international_ratings[rating_columns].mean().mean()
+
+    if domestic_overall_avg > international_overall_avg:
+        analysis_output2.append(f"\n- **Overall Satisfaction:** Domestic flights received a higher average rating ({domestic_overall_avg:.2f}) compared to international flights ({international_overall_avg:.2f}). This suggests better customer satisfaction on domestic routes.")
+    elif domestic_overall_avg < international_overall_avg:
+        analysis_output2.append(f"\n- **Overall Satisfaction:** International flights received a higher average rating ({international_overall_avg:.2f}) compared to domestic flights ({domestic_overall_avg:.2f}). This indicates higher customer satisfaction for international routes.")
+    else:
+        analysis_output2.append(f"\n- **Overall Satisfaction:** Both domestic and international flights have similar average ratings, indicating similar levels of satisfaction across both types of routes.")
+
+    # In-depth per category comparison
+    for category in rating_columns:
+        domestic_avg = domestic_ratings[category].mean()
+        international_avg = international_ratings[category].mean()
+        
+        if domestic_avg > international_avg:
+            analysis_output2.append(f"- {category.replace('_', ' ').title()}: Domestic flights received higher ratings ({domestic_avg:.2f}) compared to international ({international_avg:.2f}).")
+        elif domestic_avg < international_avg:
+            analysis_output2.append(f"- {category.replace('_', ' ').title()}: International flights received higher ratings ({international_avg:.2f}) compared to domestic ({domestic_avg:.2f}).")
+        else:
+            analysis_output2.append(f"- {category.replace('_', ' ').title()}: Ratings are similar for both domestic and international flights ({domestic_avg:.2f}).")
+
+    # Tailored recommendations and suggestions based on category comparisons
+    analysis_output2.append("\n### Recommendations: ")
+    
+    for category in rating_columns:
+        domestic_avg = domestic_ratings[category].mean()
+        international_avg = international_ratings[category].mean()
+        
+        if domestic_avg > international_avg:
+            if category == 'seat_comfort':
+                analysis_output2.append("- **Seat Comfort:** Maintain high standards for domestic flights. Consider introducing additional legroom or seat upgrades on international flights.\n Gather customer feedback on seat preferences for future improvements.")
+            elif category == 'cabin_staff_service':
+                analysis_output2.append("- **Cabin Staff Service:** Ensure domestic service remains top-notch. Identify key training elements from international staff that could enhance domestic service.\n Implement cross-training programs between domestic and international staff.")
+            elif category == 'food_&_beverages':
+                analysis_output2.append("- **Food & Beverages:** Highlight successful domestic menu items and explore their introduction on international flights.\n Conduct taste tests with customers to determine preferences.")
+            elif category == 'ground_service':
+                analysis_output2.append("- **Ground Service:** Evaluate domestic processes for efficiency and consider adopting successful strategies from international operations.\n Monitor customer flow during peak times and adjust staffing accordingly.")
+            elif category == 'wifi_&_connectivity':
+                analysis_output2.append("- **WiFi & Connectivity:** Continue to uphold high standards for domestic services while addressing any connectivity complaints on international routes.\n Invest in technology upgrades to enhance connectivity on international flights.")
+            elif category == 'value_for_money':
+                analysis_output2.append("- **Value for Money:** Maintain competitive pricing on domestic routes. Investigate customer perceptions of value on international flights.\n Conduct market research to better understand customer expectations regarding pricing.")
+            elif category == 'inflight_entertainment':
+                analysis_output2.append("- **Inflight Entertainment:** Leverage high domestic satisfaction to enhance entertainment options on international flights.\n Expand partnerships with content providers for diverse entertainment options.")
+        elif domestic_avg < international_avg:
+            if category == 'seat_comfort':
+                analysis_output2.append("- **Seat Comfort:** Investigate the factors leading to higher ratings on international flights and apply those insights to improve domestic comfort.\n Analyze seat configuration data to find optimal layouts for customer comfort.")
+            elif category == 'cabin_staff_service':
+                analysis_output2.append("- **Cabin Staff Service:** Learn from international service strengths to improve domestic experiences.\n Implement best practices from high-rated international routes in domestic staff training.")
+            elif category == 'food_&_beverages':
+                analysis_output2.append("- **Food & Beverages:** Explore incorporating popular international menu items into domestic offerings.\n Survey frequent flyers about their preferred menu items to guide changes.")
+            elif category == 'ground_service':
+                analysis_output2.append("- **Ground Service:** Identify successful international practices and apply them to enhance domestic ground services.\n Regularly review customer feedback on ground service to target specific areas for improvement.")
+            elif category == 'wifi_&_connectivity':
+                analysis_output2.append("- **WiFi & Connectivity:** Investigate the superior performance of international services and consider upgrades for domestic offerings.\n Perform a technology audit to identify potential upgrades for domestic WiFi.")
+            elif category == 'value_for_money':
+                analysis_output2.append("- **Value for Money:** Focus on enhancing the perceived value of domestic offerings based on international benchmarks.\n Offer bundled services or loyalty discounts to improve perceived value.")
+            elif category == 'inflight_entertainment':
+                analysis_output2.append("- **Inflight Entertainment:** Enhance domestic entertainment options by adopting successful elements from international flights.\n Collect customer preferences for entertainment options to tailor offerings.")
+        else:
+            analysis_output2.append(f"- **{category.replace('_', ' ').title()}:** Maintain a consistent approach to service quality across both domestic and international flights while identifying specific areas for improvement.\n Regularly conduct customer satisfaction surveys to monitor performance in these areas.")
+
+    return "\n".join(analysis_output2)
+
+
+def result_page3(traveller_rating_summary, sentiment_distribution_percentage, chosen_year):
+    analysis_output3 = []
+    analysis_output3.append(f"### Traveler Type Analysis ({chosen_year})")
+    
+    # Analyzing overall rating by type of traveler
+    highest_rated = traveller_rating_summary.iloc[0]
+    lowest_rated = traveller_rating_summary.iloc[-1]
+
+    analysis_output3.append(f"\n- Highest Rated Traveler Type: {highest_rated['type_of_traveller']} with an average rating of {highest_rated['mean']:.2f}.")
+    analysis_output3.append(f"  This traveler type seems to have the most satisfaction on average, with {highest_rated['count']} reviews.")
+    
+    analysis_output3.append(f"\n- Lowest Rated Traveler Type: {lowest_rated['type_of_traveller']} with an average rating of {lowest_rated['mean']:.2f}.")
+    analysis_output3.append(f"  This indicates that this group may be less satisfied compared to others, with {lowest_rated['count']} reviews.")
+
+    # Additional insights from median rating
+    analysis_output3.append(f"\n- Median Ratings: ")
+    for i, row in traveller_rating_summary.iterrows():
+        analysis_output3.append(f"  - {row['type_of_traveller']} has a median rating of {row['median']:.2f}.")
+
+    # Analyze sentiment distribution by traveler type
+    analysis_output3.append(f"\n ## Sentiment Analysis by Traveler Type")
+    
+    for traveller_type in sentiment_distribution_percentage.index:
+        sentiment = sentiment_distribution_percentage.loc[traveller_type]
+        
+        # Identify which sentiment dominates for each traveler type
+        dominant_sentiment = sentiment.idxmax()
+        dominant_percentage = sentiment.max() * 100
+        
+        analysis_output3.append(f"\n- {traveller_type}: ")
+        analysis_output3.append(f"  - Dominant Sentiment: {dominant_sentiment} ({dominant_percentage:.1f}% of total reviews)")
+        
+        # Analyze balance across sentiments
+        positive_percentage = sentiment['Positive'] * 100 if 'Positive' in sentiment else 0
+        neutral_percentage = sentiment['Neutral'] * 100 if 'Neutral' in sentiment else 0
+        negative_percentage = sentiment['Negative'] * 100 if 'Negative' in sentiment else 0
+        
+        analysis_output3.append(f"  - Sentiment Breakdown:")
+        analysis_output3.append(f"    - Positive: {positive_percentage:.1f}%")
+        analysis_output3.append(f"    - Neutral: {neutral_percentage:.1f}%")
+        analysis_output3.append(f"    - Negative: {negative_percentage:.1f}%")
+        
+        # Specific recommendations based on sentiment analysis
+        if dominant_sentiment == 'Negative':
+            analysis_output3.append(f"  - Recommendation: Focus on improving the experience for {traveller_type} travelers, as negative sentiment is the most prevalent.")
+        elif dominant_sentiment == 'Neutral':
+            analysis_output3.append(f"  - Recommendation: Consider investigating why {traveller_type} travelers are neither fully satisfied nor dissatisfied.")
+        else:
+            analysis_output3.append(f"  - Recommendation: Maintain the high satisfaction levels for {traveller_type} travelers, but still look for opportunities to reduce any neutral or negative experiences.")
+
+    return "\n".join(analysis_output3)
+
+
+def result_page4(seat_rating_summary, chosen_year):
+    analysis_output4 = []
+
+    # INTERPRETATION OF RESULTS: SEAT TYPE AND RATING ANALYSIS
+    analysis_output4.append(f"## Seat Type Analysis ({chosen_year})")
+    
+    # Analyzing overall rating by seat type
+    highest_rated = seat_rating_summary.iloc[0]
+    lowest_rated = seat_rating_summary.iloc[-1]
+
+    analysis_output4.append(f"\n- Highest Rated Seat Type: {highest_rated['seat_type']} with an average rating of {highest_rated['mean']:.2f}.")
+    analysis_output4.append(f"  This seat type seems to offer the most satisfaction on average, with {highest_rated['count']} reviews.")
+    
+    analysis_output4.append(f"\n- Lowest Rated Seat Type: {lowest_rated['seat_type']} with an average rating of {lowest_rated['mean']:.2f}.")
+    analysis_output4.append(f"  This indicates that this seat type may be less satisfying compared to others, with {lowest_rated['count']} reviews.")
+
+    # Additional insights from median rating
+    analysis_output4.append(f"\n- Median Ratings: ")
+    for i, row in seat_rating_summary.iterrows():
+        analysis_output4.append(f"  - {row['seat_type']} has a median rating of {row['median']}.")
+
+    # Analyze the distribution of ratings for each seat type
+    for i, row in seat_rating_summary.iterrows():
+        seat_type = row['seat_type']
+        mean_rating = row['mean']
+        median_rating = row['median']
+        count_reviews = row['count']
+
+        analysis_output4.append(f"\n- Seat Type: {seat_type}")
+        analysis_output4.append(f"  - Mean Rating: {mean_rating:.2f}")
+        analysis_output4.append(f"  - Median Rating: {median_rating:.2f}")
+        analysis_output4.append(f"  - Number of Reviews: {count_reviews}")
+
+        # Provide recommendations based on the ratings
+        if mean_rating < 3:
+            analysis_output4.append(f"  - Recommendation: Improve the features or comfort of {seat_type} seats to enhance customer satisfaction.")
+        elif mean_rating >= 3 and mean_rating < 4:
+            analysis_output4.append(f"  - Recommendation: {seat_type} seats are acceptable, but consider making incremental improvements to boost satisfaction.")
+        else:
+            analysis_output4.append(f"  - Recommendation: Continue to maintain and possibly enhance the {seat_type} seat experience, as it is highly rated.")
+
+    return "\n".join(analysis_output4)
+
 ############################# WIDGETS & CALLBACK ###########################################
 # Create buttons for the sidebar navigation
 button_home = pn.widgets.Button(name="Home", button_type="primary")
@@ -484,41 +782,177 @@ button5 = pn.widgets.Button(name="N-gram Analysis by Sentiment", button_type="pr
 # Create an area to display the content for different pages
 main_area = pn.Column()
 
-# Define the callback functions that respect the selected year
+def typewriter_effect(text, pane, delay=0.05):
+    """
+    A function that updates a Markdown pane to simulate a typewriter effect.
+    """
+    pane.object = ""  # Clear the pane initially
+    for char in text:
+        pane.object += char  # Append each character
+        pane.param.trigger('object')  # Update the pane
+        time.sleep(delay)  # Delay to simulate typing
+
 def show_page1(event=None):
-    chosen_year = year_selector.value  
-    main_area.clear() 
+    chosen_year = year_selector.value
+    main_area.clear()  
     
-    year_reviews, sentiment_counts = get_sentiment_analysis(reviews_df, chosen_year)
+    # Unpack all three returned values including total_reviews
+    year_reviews, sentiment_counts, total_reviews = get_sentiment_analysis(reviews_df, chosen_year)
     
-    # Use holoviews instead of matplotlib
-    sentiment_plots = plot_monthly_sentiment(sentiment_counts, chosen_year)
-    main_area.append(pn.pane.HoloViews(sentiment_plots))
+    # Pass total_reviews to the plot_monthly_sentiment function
+    sentiment_plots = plot_monthly_sentiment(sentiment_counts, chosen_year, total_reviews)
+
+    # Create the GridSpec layout
+    grid = pn.GridSpec()
+
+    # Button for analysis
+    button_analyze = pn.widgets.Button(name="Analyse", button_type="primary", width=150, height=50)
+    
+    # Assign sentiment plots to the first row
+    grid[0, 1:4] = pn.pane.HoloViews(sentiment_plots, align='center') 
+    grid[0, 5] = button_analyze
+
+    # Create a Markdown pane to display analysis results
+    analysis_output_pane = pn.pane.Markdown("", width=900, height=300)  # Set an appropriate height
+
+    # Add the Markdown pane to the second row of the grid
+    grid[1, 1:4] = analysis_output_pane  # This will now not overlap with the sentiment plots
+
+    # Define what happens when the button is clicked
+    def analyze_results1(event):
+        # Call the interpret_results function to get results as text
+        result_text = result_page1(chosen_year, total_reviews, sentiment_counts, is_yearly=(chosen_year == 'ALL'))
+        
+        # Start a new thread for the typewriter effect to avoid blocking the UI
+        threading.Thread(target=typewriter_effect, args=(result_text, analysis_output_pane)).start()
+
+    # Link the button's click event to the analyze function
+    button_analyze.on_click(analyze_results1)
+
+    # Finally append the grid to the main area
+    main_area.append(grid)
+
 
 def show_page2(event=None):
     chosen_year = year_selector.value 
-    year_reviews, _ = get_sentiment_analysis(reviews_df, chosen_year)
+    # Unpack year_reviews, ignore other returned values
+    year_reviews, _, _ = get_sentiment_analysis(reviews_df, chosen_year)
+    
     main_area.clear()
     avg_ratings_plot = plot_avg_ratings(year_reviews, chosen_year)
-    main_area.append(pn.pane.HoloViews(avg_ratings_plot, height=600))
+
+    # Create the GridSpec layout
+    grid = pn.GridSpec()
+
+    # Button for analysis
+    button_analyze = pn.widgets.Button(name="Analyze", button_type="primary", width=150, height=50)
+    
+    grid[0,1:4] = pn.pane.HoloViews(avg_ratings_plot)
+    grid[0, 5] = button_analyze
+
+    # Create a Markdown pane to display analysis results
+    analysis_output_pane = pn.pane.Markdown("", width=900, height=300)
+    grid[1, 1:4] = analysis_output_pane  # Place the analysis output pane in the grid
+
+    def analyze_results2(event):
+        # Call the interpret_route_performance function to get results as text
+        result_text = result_page2(year_reviews, chosen_year)
+
+        # Start a new thread for the typewriter effect to avoid blocking the UI
+        threading.Thread(target=typewriter_effect, args=(result_text, analysis_output_pane)).start()
+
+    # Link the button's click event to the analyze function
+    button_analyze.on_click(analyze_results2)
+
+    main_area.append(grid)  # Add the grid to the main area
+
+
 
 def show_page3(attr=None, old=None, new=None):
     """Display sentiment distribution by traveler type using Bokeh."""
     chosen_year = year_selector.value
-    year_reviews, _ = get_sentiment_analysis(reviews_df, chosen_year)
+    # Unpack year_reviews, ignore other returned values
+    year_reviews, _, _ = get_sentiment_analysis(reviews_df, chosen_year)
+    
+    traveller_rating_summary = year_reviews.groupby('type_of_traveller').agg(
+        mean=('rating', 'mean'),
+        median=('rating', 'median'),
+        count=('rating', 'size')
+    ).reset_index().sort_values('mean', ascending=False)
+
+    # Sentiment distribution as a percentage for each traveler type
+    sentiment_distribution_percentage = year_reviews.groupby('type_of_traveller')['vader_sentiment'].value_counts(normalize=True).unstack(fill_value=0)
+    
     main_area.clear()
-    main_area.append(pn.pane.Bokeh(plot_traveller_sentiments(year_reviews, chosen_year), height=600))
+
+    # Create the GridSpec layout
+    grid = pn.GridSpec()
+
+    # Button for analysis
+    button_analyze = pn.widgets.Button(name="Analyze", button_type="primary", width=150, height=50)
+    
+    grid[0, 1:4] = pn.pane.Bokeh(plot_traveller_sentiments(year_reviews, chosen_year))
+    grid[0, 5] = button_analyze
+
+    # Create a Markdown pane to display analysis results
+    analysis_output_pane = pn.pane.Markdown("", width=900, height=300)
+    grid[1, 1:4] = analysis_output_pane  # Place the analysis output pane in the grid
+
+    def analyze_results3(event):
+        # Call the interpret_traveller_performance function to get results as text
+        result_text = result_page3(traveller_rating_summary, sentiment_distribution_percentage, chosen_year)
+
+        # Start a new thread for the typewriter effect to avoid blocking the UI
+        threading.Thread(target=typewriter_effect, args=(result_text, analysis_output_pane)).start()
+
+    # Link the button's click event to the analyze function
+    button_analyze.on_click(analyze_results3)
+
+    main_area.append(grid)
+
 
 def show_page4(event=None):
     chosen_year = year_selector.value 
-    year_reviews, _ = get_sentiment_analysis(reviews_df, chosen_year)
+    # Unpack year_reviews, ignore other returned values
+    year_reviews, _, _ = get_sentiment_analysis(reviews_df, chosen_year)
+    
+    # Group by seat type to analyze ratings
+    seat_rating_summary = year_reviews.groupby('seat_type')['rating'].agg(['mean', 'median', 'count']).reset_index()
+    seat_rating_summary = seat_rating_summary.sort_values(by='mean', ascending=False)
+
     main_area.clear()
-    main_area.append(pn.pane.HoloViews(plot_seat_type_ratings(year_reviews, chosen_year), height=600))
+
+    # Create the GridSpec layout
+    grid = pn.GridSpec()
+
+    # Button for analysis
+    button_analyze = pn.widgets.Button(name="Analyze", button_type="primary", width=150, height=50)
+    
+
+    grid[0, 1:4] = pn.pane.HoloViews(plot_seat_type_ratings(year_reviews, chosen_year), height=600)
+    grid[0, 5] = button_analyze
+
+    # Create a Markdown pane to display analysis results
+    analysis_output_pane = pn.pane.Markdown("", width=900, height=300)
+    grid[1, 1:4] = analysis_output_pane  # Place the analysis output pane in the grid
+
+    def analyze_results4(event):
+        # Call the interpret_traveller_performance function to get results as text
+        result_text = result_page4(seat_rating_summary, chosen_year)
+
+        # Start a new thread for the typewriter effect to avoid blocking the UI
+        threading.Thread(target=typewriter_effect, args=(result_text, analysis_output_pane)).start()
+
+    # Link the button's click event to the analyze function
+    button_analyze.on_click(analyze_results4)
+    main_area.append(grid)
+
 
 def show_page5(event=None):
     # Get the selected year and sentiment analysis for that year
     chosen_year = year_selector.value
-    year_reviews, _ = get_sentiment_analysis(reviews_df, chosen_year)
+    # Unpack year_reviews, ignore other returned values
+    year_reviews, _, _ = get_sentiment_analysis(reviews_df, chosen_year)
 
     # Generate top N-grams for each sentiment (positive, negative, neutral)
     positive_reviews = year_reviews[year_reviews['vader_sentiment'] == 'Positive']['cleaned_review']
@@ -545,6 +979,7 @@ def show_page5(event=None):
         plot_reviews(None, None, top_neutral_ngrams, mask=mask)  # Neutral n-grams
         main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
 
+
 def show_home_page(event=None):
     chosen_year = year_selector.value  
     main_area.clear()  
@@ -556,8 +991,8 @@ def show_home_page(event=None):
     grid[0, 0] = pn.Column(rating_display, overall_category_ratings)  
 
     # Display holoviews plots for sentiment analysis
-    year_reviews, sentiment_counts = get_sentiment_analysis(reviews_df, chosen_year)
-    sentiment_plots = plot_monthly_sentiment(sentiment_counts, chosen_year)
+    year_reviews, sentiment_counts, total_reviews = get_sentiment_analysis(reviews_df, chosen_year)
+    sentiment_plots = plot_monthly_sentiment(sentiment_counts, chosen_year, total_reviews)
     
     # Set the sizing mode and alignment for each plot
     grid[0, 1:3] = pn.pane.HoloViews(sentiment_plots, sizing_mode='stretch_both', align='center')  
@@ -567,6 +1002,7 @@ def show_home_page(event=None):
 
     # Append the grid layout to the main area
     main_area.append(grid)
+
 
 
 # Attach callbacks to buttons
