@@ -12,7 +12,13 @@ from PIL import Image
 from wordcloud import WordCloud
 import holoviews as hv
 from bokeh.models import HoverTool
-
+from bokeh.models import Select, ColumnDataSource
+from bokeh.plotting import figure
+from bokeh.layouts import column
+from bokeh.palettes import Category20
+import numpy as np
+import pandas as pd
+from bokeh.transform import cumsum
 
 # Ensure Panel is using the latest template
 pn.extension()
@@ -34,8 +40,6 @@ reviews_df['month'] = reviews_df['date'].dt.strftime('%B')
 # Available years for dropdown
 available_years = [str(year) for year in sorted(reviews_df['year'].unique())] + ['ALL']
 
-# Define plot size
-PLOT_SIZE = (10, 6)
 
 ############################ OVERALL RESULTS ############################
 #all_reviews = "air_nz_cleaned_data.csv"
@@ -126,9 +130,12 @@ def get_sentiment_analysis(reviews_df, chosen_year):
 def plot_monthly_sentiment(sentiment_counts, chosen_year):
     sentiment_counts = sentiment_counts.reset_index()
 
+    # Check if 'month' is in columns or 'year', and set the corresponding id_var and kdims
+    time_column = 'month' if 'month' in sentiment_counts.columns else 'year'
+    
     # Melt the dataframe for easier plotting
     sentiment_counts_melted = sentiment_counts.melt(
-        id_vars=['month' if 'month' in sentiment_counts.columns else 'year'], 
+        id_vars=[time_column],  # Use time_column for id_vars
         var_name='Sentiment', 
         value_name='Count'
     )
@@ -140,7 +147,7 @@ def plot_monthly_sentiment(sentiment_counts, chosen_year):
     sentiment_plots = hv.NdOverlay({
         sentiment: hv.Curve(
             sentiment_counts_melted[sentiment_counts_melted['Sentiment'] == sentiment], 
-            kdims=['month' if 'month' in sentiment_counts_melted.columns else 'year'], 
+            kdims=[time_column],  # Use time_column for kdims
             vdims=['Count'],
             label=sentiment
         ).opts(
@@ -149,20 +156,25 @@ def plot_monthly_sentiment(sentiment_counts, chosen_year):
         for sentiment in sentiment_counts_melted['Sentiment'].unique()
     })
 
-    # Add hover tool for interactivity
+    # Define xlabel logic first
+    xlabel = 'Month' if time_column == 'month' else 'Year'
+
+    # Apply it in both xlabel and the title
     sentiment_plots = sentiment_plots.opts(
-        xlabel='Month' if 'month' in sentiment_counts.index.names else 'Year',
+        xlabel=xlabel,  # Use the defined xlabel
         ylabel='Number of Reviews',
         tools=[HoverTool(tooltips=[('Month/Year', '@x'), ('Count', '@y')])],
         show_legend=True,
         legend_position='top_left',
-        width=1000,  # Specify fixed width
-        height=600  # Specify fixed height
+        title=f'Total Number of Reviews by {xlabel} and Sentiment ({chosen_year})',  # Use xlabel in the title as well
+        height=600,
+        width=900,  # Specify fixed height
+        show_grid=True  # Show the grid
     )
-    
+
     return sentiment_plots
 
-# Function to generate the average ratings plot
+
 # Function to generate the average ratings plot
 def plot_avg_ratings(year_reviews, chosen_year):
     rating_columns = [
@@ -231,52 +243,94 @@ def plot_avg_ratings(year_reviews, chosen_year):
         bar_width=0.9,
         line_color='black',
         line_width=1,
-        title=f'Average Ratings per Category: Domestic vs International ({chosen_year})',
+        title=f'Average Ratings per Category:\nDomestic vs International ({chosen_year})',  # Newline between the title
         invert_axes=True  # Make the bars horizontal
     )
 
     return bars
 
+
+
 def plot_traveller_sentiments(year_reviews, chosen_year):
     """
-    Generate pie charts for sentiment distribution by type of traveler.
+    Generate a pie chart for sentiment distribution by type of traveler using Bokeh.
     """
-    # Define color mapping for sentiments
-    COLOR_MAP = {'Negative': 'red', 'Neutral': 'orange', 'Positive': 'green'}
 
     # Group the data by type of traveler and sentiment
     sentiment_distribution = year_reviews.groupby(['type_of_traveller', 'vader_sentiment']).size().unstack(fill_value=0)
-    traveller_types = sentiment_distribution.index
 
-    # Create subplots for each type of traveler (2 rows, 2 columns)
-    num_travellers = len(traveller_types)
-    rows = 2
-    cols = 2
-    fig, axes = plt.subplots(rows, cols, figsize=(14, 14))
+    # Get unique traveler types for the dropdown
+    traveller_types = sentiment_distribution.index.tolist()
 
-    # Flatten axes array for easy indexing
-    axes = axes.flatten()
+    # Initial pie chart setup for the first traveler type
+    current_type = traveller_types[0]
+    sentiments = sentiment_distribution.loc[current_type]
+    data = pd.DataFrame(sentiments).reset_index()
+    data.columns = ['vader_sentiment', 'value']
+    data['angle'] = data['value'] / data['value'].sum() * 2 * np.pi
 
-    # Iterate through each type of traveler and create a pie chart
-    for i, traveller_type in enumerate(traveller_types):
-        sentiments = sentiment_distribution.loc[traveller_type]
-        axes[i].pie(
-            sentiments,
-            labels=sentiments.index,
-            autopct='%1.1f%%',
-            startangle=90,
-            colors=[COLOR_MAP.get(sentiment, 'grey') for sentiment in sentiments.index]  # Use color mapping
-        )
-        axes[i].set_title(traveller_type)
+    # Define consistent colors for sentiments
+    sentiment_color_mapping = {
+        'Negative': '#FF5733',  # Custom color for Negative (red)
+        'Positive': '#28A745',  # Custom color for Positive (green)
+        'Neutral': '#FFC107'     # Custom color for Neutral (yellow)
+    }
+    
+    # Assign colors based on the sentiment
+    data['color'] = data['vader_sentiment'].map(sentiment_color_mapping)
 
-    # Hide any unused subplots if there are fewer than 4 types of travelers
-    for j in range(num_travellers, rows * cols):
-        fig.delaxes(axes[j])
+    data['percentage'] = ((data['value'] / data['value'].sum()) * 100).round(2).astype(str) # Calculate percentages and format as string
 
-    # Adjust layout for titles and overall title
-    plt.subplots_adjust(top=0.9)  # Adjust the top space for the title
-    plt.suptitle(f'Sentiment Distribution for Different Types of Travelers ({chosen_year})', fontsize=16, fontweight='bold')
-    return plt.gcf()
+    # Create a ColumnDataSource from the data
+    source = ColumnDataSource(data)
+
+    # Create the initial pie chart
+    pie_chart = figure(height=450, width=450, title=current_type, toolbar_location=None,
+                       tools="hover", tooltips="@vader_sentiment: @percentage%", x_range=(-0.5, 1.0))
+
+    pie_chart.wedge(x=0, y=1, radius=0.4, 
+                    start_angle=cumsum('angle', include_zero=True), end_angle=cumsum('angle'),
+                    line_color="white", fill_color='color', legend_field='vader_sentiment', source=source)
+
+    pie_chart.axis.visible = False
+    pie_chart.grid.grid_line_color = None
+
+    # Create a dropdown for selecting traveler types
+    dropdown = Select(title="Type of Traveler", value=current_type, options=traveller_types)
+
+    def update(attr, old, new):
+        # Update the pie chart based on the selected traveler type
+        current_type = dropdown.value
+        sentiments = sentiment_distribution.loc[current_type]
+        data = pd.DataFrame(sentiments).reset_index()
+        data.columns = ['vader_sentiment', 'value']
+        data['angle'] = data['value'] / data['value'].sum() * 2 * np.pi
+
+        # Assign colors based on the sentiment for the updated data
+        data['color'] = data['vader_sentiment'].map(sentiment_color_mapping)
+        
+        data['percentage'] = ((data['value'] / data['value'].sum()) * 100).round(2).astype(str) # Calculate percentages and format as string
+
+        # Update the ColumnDataSource
+        source.data = {
+            'vader_sentiment': data['vader_sentiment'],
+            'value': data['value'],
+            'angle': data['angle'],
+            'color': data['color'],
+            'percentage': data['percentage']
+        }
+
+        # Update pie chart title
+        pie_chart.title.text = current_type
+
+    # Attach the update function to the dropdown
+    dropdown.on_change('value', update)
+
+    # Layout the dropdown and the pie chart
+    layout = column(dropdown, pie_chart)
+
+    return layout
+
 
 def plot_seat_type_ratings(year_reviews, chosen_year):
     # Group by seat type and calculate rating statistics
@@ -448,18 +502,18 @@ def show_page2(event=None):
     avg_ratings_plot = plot_avg_ratings(year_reviews, chosen_year)
     main_area.append(pn.pane.HoloViews(avg_ratings_plot, height=600))
 
-def show_page3(event=None):
-    """Display sentiment distribution by traveler type."""
+def show_page3(attr=None, old=None, new=None):
+    """Display sentiment distribution by traveler type using Bokeh."""
+    chosen_year = year_selector.value
+    year_reviews, _ = get_sentiment_analysis(reviews_df, chosen_year)
+    main_area.clear()
+    main_area.append(pn.pane.Bokeh(plot_traveller_sentiments(year_reviews, chosen_year), height=600))
+
+def show_page4(event=None):
     chosen_year = year_selector.value 
     year_reviews, _ = get_sentiment_analysis(reviews_df, chosen_year)
     main_area.clear()
-    main_area.append(pn.pane.Matplotlib(plot_traveller_sentiments(year_reviews, chosen_year), height=600))
-
-def show_page4(event=None):
-    chosen_year = year_selector.value  
-    year_reviews, _ = get_sentiment_analysis(reviews_df, chosen_year) 
-    main_area.clear()
-    main_area.append(pn.pane.HoloViews(plot_seat_type_ratings(year_reviews, chosen_year), height=600))  # Plot average ratings by seat type
+    main_area.append(pn.pane.HoloViews(plot_seat_type_ratings(year_reviews, chosen_year), height=600))
 
 def show_page5(event=None):
     # Get the selected year and sentiment analysis for that year
@@ -499,20 +553,21 @@ def show_home_page(event=None):
     grid = pn.GridSpec(sizing_mode='stretch_both')
 
     # Add the overall rating at the top of the home page in a single cell
-    grid[0, 2] = pn.Column(rating_display, overall_category_ratings)  
+    grid[0, 0] = pn.Column(rating_display, overall_category_ratings)  
 
     # Display holoviews plots for sentiment analysis
     year_reviews, sentiment_counts = get_sentiment_analysis(reviews_df, chosen_year)
     sentiment_plots = plot_monthly_sentiment(sentiment_counts, chosen_year)
-    grid[0, 0] = pn.pane.HoloViews(sentiment_plots, height=500, width=900)  
     
-    avg_ratings_plot = plot_avg_ratings(year_reviews, chosen_year)
-    grid[1, 0] = pn.pane.HoloViews(plot_avg_ratings(year_reviews, chosen_year), height=400)  
-    grid[1, 1] = pn.pane.Matplotlib(plot_traveller_sentiments(year_reviews, chosen_year), height=600)  
-    grid[1, 2] = pn.pane.HoloViews(plot_seat_type_ratings(year_reviews, chosen_year), height=600)
+    # Set the sizing mode and alignment for each plot
+    grid[0, 1:3] = pn.pane.HoloViews(sentiment_plots, sizing_mode='stretch_both', align='center')  
+    grid[1, 0] = pn.pane.HoloViews(plot_avg_ratings(year_reviews, chosen_year), sizing_mode='stretch_both', align='center')  
+    grid[1, 1] = pn.pane.Bokeh(plot_traveller_sentiments(year_reviews, chosen_year), sizing_mode='stretch_both', align='center')
+    grid[1, 2] = pn.pane.HoloViews(plot_seat_type_ratings(year_reviews, chosen_year), sizing_mode='stretch_both', align='center')
 
     # Append the grid layout to the main area
     main_area.append(grid)
+
 
 # Attach callbacks to buttons
 button_home.on_click(lambda event: set_current_page('home'))
@@ -550,11 +605,12 @@ def update_on_year_change(event):
     elif current_page == 'page2':
         show_page2()
     elif current_page == 'page3':
-        show_page3()
+        show_page3() 
     elif current_page == 'page4':
         show_page4()
     elif current_page == 'page5':
         show_page5()
+
 
 year_selector.param.watch(update_on_year_change, 'value')
 
