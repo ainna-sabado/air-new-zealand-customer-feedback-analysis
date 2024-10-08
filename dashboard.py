@@ -20,14 +20,11 @@ import numpy as np
 import pandas as pd
 from bokeh.transform import cumsum
 
-# Define the callback functions that respect the selected year
+# Callback functions that respect the selected year
 import time
 import threading
 
-
-# Ensure Panel is using the latest template
 pn.extension()
-
 hv.extension('bokeh')
 
 ############################ LOAD DATASETS ############################
@@ -65,17 +62,16 @@ rating_display = pn.pane.HTML(rating_html, width=300, height=100)
 rating_columns = ['seat_comfort', 'cabin_staff_service', 'food_&_beverages', 'ground_service', 
                   'wifi_&_connectivity', 'value_for_money', 'inflight_entertainment']
 
-# Example average ratings by category (replace with actual values from your data)
 average_ratings_by_category = np.ceil(all_reviews[rating_columns].mean())
 
 top_5_ratings = average_ratings_by_category.sort_values(ascending=False).head(5)
 
 top_5_ratings = top_5_ratings.sort_index()
 
-# Define the star symbols (you can use CSS or images as well)
+# Define star symbols
 def generate_star_html(rating):
     full_star = '<span style="color: gold; font-size: 24px;">&#9733;</span>'  # Filled star (★)
-    half_star = '<span style="color: gold; font-size: 24px;">&#11088;</span>'  # Half star (⯨)
+    half_star = '<span style="color: gold; font-size: 24px;">&#11088;</span>'  # Half star
     empty_star = '<span style="color: lightgray; font-size: 24px;">&#9734;</span>'  # Empty star (☆)
 
     stars = ""
@@ -89,69 +85,52 @@ def generate_star_html(rating):
     
     return stars
 
-# Generate the HTML for all categories
 html_content = "<div style='font-family: Arial, sans-serif; padding: 10px;'>"
 html_content += "<h3>Overall Average Ratings by Category</h3>"
 
 for category, rating in top_5_ratings.items():
     stars = generate_star_html(rating)
-    # Formatting category names with stars
     html_content += f"<div style='margin-bottom: 10px;'><strong>{category.replace('_', ' ').title()}:</strong> {stars} ({rating:.1f})</div>"
 
 html_content += "</div>"
 
 overall_category_ratings = pn.pane.HTML(html_content, width=500)
 
-
 ############################ WIDGET FOR YEAR SELECTION ############################
 year_selector = pn.widgets.Select(name='Select Year', options=available_years, value='ALL', sizing_mode='stretch_width')
 
 ############################ CREATE CHARTS ############################
-# Variable to track current page (sentiment analysis, ratings, or home)
 current_page = 'home'
 
-# Ratings converted to numeric if they are in string format
 reviews_df['rating'] = pd.to_numeric(reviews_df['rating'], errors='coerce')
 
 def get_sentiment_analysis(reviews_df, chosen_year):
     if chosen_year == 'ALL':
-        # Group by year for the overall data
         year_reviews = reviews_df
         sentiment_counts = year_reviews.groupby(['year', 'vader_sentiment']).size().unstack(fill_value=0)
     else:
-        # Group by month for the selected year
         year_reviews = reviews_df[reviews_df['year'] == int(chosen_year)]
         sentiment_counts = year_reviews.groupby(['month', 'vader_sentiment']).size().unstack(fill_value=0)
 
-        # Reindex by month to ensure correct order of months
         sentiment_counts = sentiment_counts.reindex([
             'January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December'
         ], fill_value=0)
 
-    # Calculate total reviews for the selected year
     total_reviews = year_reviews.shape[0]
-
     return year_reviews, sentiment_counts, total_reviews
 
-
+### TOTAL NUMBER OF REVIEWS BY MONTH/YEAR AND SENTIMENT
 def plot_monthly_sentiment(sentiment_counts, chosen_year, total_reviews):
     sentiment_counts = sentiment_counts.reset_index()
-
-    # Check if 'month' is in columns or 'year', and set the corresponding id_var and kdims
     time_column = 'month' if 'month' in sentiment_counts.columns else 'year'
-    
-    # Melt the dataframe for easier plotting
     sentiment_counts_melted = sentiment_counts.melt(
-        id_vars=[time_column],  # Use time_column for id_vars
+        id_vars=[time_column],
         var_name='Sentiment', 
         value_name='Count'
     )
 
-    # Define the color mapping for the sentiments
     color_map = {'Negative': 'red', 'Neutral': 'orange', 'Positive': 'green'}
-
-    # Create an overlay of separate Curves for each sentiment type
     sentiment_plots = hv.NdOverlay({
         sentiment: hv.Curve(
             sentiment_counts_melted[sentiment_counts_melted['Sentiment'] == sentiment], 
@@ -164,26 +143,23 @@ def plot_monthly_sentiment(sentiment_counts, chosen_year, total_reviews):
         for sentiment in sentiment_counts_melted['Sentiment'].unique()
     })
 
-    # Define xlabel logic first
     xlabel = 'Month' if time_column == 'month' else 'Year'
 
-    # Apply it in both xlabel and the title
     sentiment_plots = sentiment_plots.opts(
-        xlabel=xlabel,  # Use the defined xlabel
+        xlabel=xlabel,  
         ylabel='Number of Reviews',
         tools=[HoverTool(tooltips=[('Month/Year', '@x'), ('Count', '@y')])],
         show_legend=True,
         legend_position='top_left',
-        title=f'Total Number of Reviews ({total_reviews}) by {xlabel} and Sentiment ({chosen_year})',  # Use xlabel in the title as well
+        title=f'Total Number of Reviews ({total_reviews}) by {xlabel} and Sentiment ({chosen_year})',  
         height=600,
-        width=900,  # Specify fixed height
-        show_grid=True  # Show the grid
+        width=900,  
+        show_grid=True 
     )
 
     return sentiment_plots
 
-
-# Function to generate the average ratings plot
+### AVERAGE RATINGS PER CATEGORY: DOMESTIC VS INTERNATIONAL ROUTES
 def plot_avg_ratings(year_reviews, chosen_year):
     rating_columns = [
         'seat_comfort', 'cabin_staff_service', 'food_&_beverages', 
@@ -191,10 +167,7 @@ def plot_avg_ratings(year_reviews, chosen_year):
         'wifi_&_connectivity'
     ]
     
-    # Calculate average ratings
     average_ratings = year_reviews.groupby('is_domestic')[rating_columns].mean().reset_index()
-    
-    # Melt the DataFrame for easier plotting
     average_ratings_melted = average_ratings.melt(
         id_vars='is_domestic', 
         value_vars=rating_columns, 
@@ -202,37 +175,29 @@ def plot_avg_ratings(year_reviews, chosen_year):
         value_name='average_rating'
     )
     
-    # Map 'is_domestic' to readable route types
     average_ratings_melted['Route Type'] = average_ratings_melted['is_domestic'].map({True: 'Domestic', False: 'International'})
     
-    # Format 'category' to replace underscores with spaces and capitalize each word
     average_ratings_melted['category'] = (
         average_ratings_melted['category']
-        .str.replace('_', ' ')  # Replace underscores with spaces
-        .str.title()  # Capitalize each word
+        .str.replace('_', ' ')  
+        .str.title()  
     )
     
-    # Sort the data so that bars with higher average ratings are plotted first
     average_ratings_melted = average_ratings_melted.sort_values(by=['category', 'average_rating'], ascending=[True, False])
-    
-    # Define color mapping
     color_mapping = {'Domestic': '#1f77b4', 'International': '#ff7f0e'}
     
-    # Ensure categories follow the original order
     average_ratings_melted['category'] = pd.Categorical(
         average_ratings_melted['category'], 
         categories=[col.replace('_', ' ').title() for col in rating_columns], 
         ordered=True
     )
     
-    # Create the bar plot using Holoviews
     bars = hv.Bars(
         average_ratings_melted, 
         kdims=['category'], 
         vdims=['average_rating', 'Route Type']
     )
     
-    # Set options for the bar plot
     bars.opts(
         ylabel='Average Rating', 
         xlabel='Category',  
@@ -246,53 +211,43 @@ def plot_avg_ratings(year_reviews, chosen_year):
         hover_tooltips=[
             ('Category', '@category'), 
             ('Route Type', '@{Route Type}'), 
-            ('Average Rating', '@{average_rating}{0.2f}')  # Format to 2 decimal places
+            ('Average Rating', '@{average_rating}{0.2f}')  
         ],
         bar_width=0.9,
         line_color='black',
         line_width=1,
         title=f'Average Ratings per Category:\nDomestic vs International ({chosen_year})',  
-        invert_axes=True  # Make the bars horizontal
+        invert_axes=True 
     )
 
     return bars
 
 
-
+### SENTIMENT DISTRIBUTION BY TRAVELER TYPE
 def plot_traveller_sentiments(year_reviews, chosen_year):
     """
     Generate a pie chart for sentiment distribution by type of traveler using Bokeh.
     """
 
-    # Group the data by type of traveler and sentiment
     sentiment_distribution = year_reviews.groupby(['type_of_traveller', 'vader_sentiment']).size().unstack(fill_value=0)
-
-    # Get unique traveler types for the dropdown
     traveller_types = sentiment_distribution.index.tolist()
-
-    # Initial pie chart setup for the first traveler type
     current_type = traveller_types[0]
     sentiments = sentiment_distribution.loc[current_type]
     data = pd.DataFrame(sentiments).reset_index()
     data.columns = ['vader_sentiment', 'value']
     data['angle'] = data['value'] / data['value'].sum() * 2 * np.pi
 
-    # Define consistent colors for sentiments
     sentiment_color_mapping = {
-        'Negative': '#FF5733',  # Custom color for Negative (red)
-        'Positive': '#28A745',  # Custom color for Positive (green)
-        'Neutral': '#FFC107'     # Custom color for Neutral (yellow)
+        'Negative': '#FF5733', # (red)
+        'Positive': '#28A745',  # (green)
+        'Neutral': '#FFC107'     # (yellow)
     }
     
-    # Assign colors based on the sentiment
     data['color'] = data['vader_sentiment'].map(sentiment_color_mapping)
+    data['percentage'] = ((data['value'] / data['value'].sum()) * 100).round(2).astype(str) 
 
-    data['percentage'] = ((data['value'] / data['value'].sum()) * 100).round(2).astype(str) # Calculate percentages and format as string
-
-    # Create a ColumnDataSource from the data
     source = ColumnDataSource(data)
 
-    # Create the initial pie chart
     pie_chart = figure(height=325, width=600, title=current_type, toolbar_location=None,
                        tools="hover", tooltips="@vader_sentiment: @percentage%", x_range=(-0.5, 1.0))
 
@@ -303,23 +258,17 @@ def plot_traveller_sentiments(year_reviews, chosen_year):
     pie_chart.axis.visible = False
     pie_chart.grid.grid_line_color = None
 
-    # Create a dropdown for selecting traveler types
     dropdown = Select(title="Type of Traveler", value=current_type, options=traveller_types)
 
     def update(attr, old, new):
-        # Update the pie chart based on the selected traveler type
         current_type = dropdown.value
         sentiments = sentiment_distribution.loc[current_type]
         data = pd.DataFrame(sentiments).reset_index()
         data.columns = ['vader_sentiment', 'value']
         data['angle'] = data['value'] / data['value'].sum() * 2 * np.pi
-
-        # Assign colors based on the sentiment for the updated data
         data['color'] = data['vader_sentiment'].map(sentiment_color_mapping)
-        
-        data['percentage'] = ((data['value'] / data['value'].sum()) * 100).round(2).astype(str) # Calculate percentages and format as string
+        data['percentage'] = ((data['value'] / data['value'].sum()) * 100).round(2).astype(str) 
 
-        # Update the ColumnDataSource
         source.data = {
             'vader_sentiment': data['vader_sentiment'],
             'value': data['value'],
@@ -328,26 +277,18 @@ def plot_traveller_sentiments(year_reviews, chosen_year):
             'percentage': data['percentage']
         }
 
-        # Update pie chart title
         pie_chart.title.text = current_type
 
-    # Attach the update function to the dropdown
     dropdown.on_change('value', update)
-
-    # Layout the dropdown and the pie chart
     layout = column(dropdown, pie_chart)
 
     return layout
 
-
+### AVERAGE RATINGS PER SEAT TYPE
 def plot_seat_type_ratings(year_reviews, chosen_year):
-    # Group by seat type and calculate rating statistics
     seat_rating_summary = year_reviews.groupby('seat_type')['rating'].agg(['mean', 'median', 'count']).reset_index()
-
-    # Sort the values to see which seat types have the highest/lowest ratings
     seat_rating_summary = seat_rating_summary.sort_values(by='mean', ascending=False)
 
-    # Create a bar plot using HoloViews
     bar_plot = hv.Bars(seat_rating_summary, kdims=['seat_type'], vdims=['mean']).opts(
         title=f'Average Ratings by Seat Type ({chosen_year})',
         xlabel='Seat Type',
@@ -359,19 +300,18 @@ def plot_seat_type_ratings(year_reviews, chosen_year):
         height=400
     )
 
-    # Return the HoloViews plot wrapped in a Panel pane
     return bar_plot
 
-
-# Initialize stop words and lemmatizer
+### N-GRAM AND WORDCLOUD SENTIMENT ANALYSIS
 stop_words = set(stopwords.words('english'))
 lemmatizer = WordNetLemmatizer()
 
-# Common words to exclude from analysis
 excluded_terms = ["air_new_zealand", "flight", "auckland", "christchurch", "wellington", 
                   "new", "zealand", "air", "nz", "even_though", "via", "av", "sec", "could"]
 
-# Function to preprocess text
+mask = np.array(Image.open('/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/airplane-vector-36294843 copy.jpg'))
+
+
 def preprocess_text(text):
     text = text.lower()
     text = re.sub(r'[^\w\s]', '', text)
@@ -379,32 +319,23 @@ def preprocess_text(text):
     text = " ".join([lemmatizer.lemmatize(word) for word in text.split() if word not in stop_words])
     return text
 
-# Load the airplane mask image
-mask = np.array(Image.open('/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/airplane-vector-36294843 copy.jpg'))
-
-# Function to generate n-grams
 def generate_ngrams(text, n=3):
     words = text.split()
     ngrams_list = ["_".join(ngram) for ngram in ngrams(words, n)]
     return ngrams_list
 
-# Function to get top N n-grams while excluding certain terms
 def get_top_n_ngrams(sentiment_reviews, n=20):
     all_ngrams = []
     for review in sentiment_reviews:
         all_ngrams.extend(generate_ngrams(review)) 
     
-    # Remove excluded terms
     filtered_ngrams = [ngram for ngram in all_ngrams if all(term not in ngram for term in excluded_terms)]
-    
-    # Count frequencies of remaining n-grams
     ngram_freq = Counter(filtered_ngrams)
+
     return ngram_freq.most_common(n)
 
-# Preprocess the reviews
 reviews_df['cleaned_review'] = reviews_df['review_content'].apply(preprocess_text)
 
-# Get the top n-grams for each sentiment
 positive_reviews = reviews_df[reviews_df['vader_sentiment'] == 'Positive']['cleaned_review']
 negative_reviews = reviews_df[reviews_df['vader_sentiment'] == 'Negative']['cleaned_review']
 neutral_reviews = reviews_df[reviews_df['vader_sentiment'] == 'Neutral']['cleaned_review']
@@ -412,9 +343,6 @@ neutral_reviews = reviews_df[reviews_df['vader_sentiment'] == 'Neutral']['cleane
 top_positive_ngrams = get_top_n_ngrams(positive_reviews, 20)
 top_negative_ngrams = get_top_n_ngrams(negative_reviews, 20)
 top_neutral_ngrams = get_top_n_ngrams(neutral_reviews, 10)
-
-# Load the airplane mask image
-mask = np.array(Image.open('/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/airplane-vector-36294843 copy.jpg'))
 
 def preprocess_ngrams(ngram_freq):
     word_list = []
@@ -426,29 +354,25 @@ def preprocess_ngrams(ngram_freq):
 def plot_wordcloud(ngram_freq, title, mask, ax):
     if not ngram_freq:  
         ax.set_title(f'Word Cloud for {title}')
-        ax.axis('off')  # Hide axis if no n-grams
+        ax.axis('off')
         return
     
-    # Preprocess n-grams to individual words
     word_freq_dict = preprocess_ngrams(ngram_freq)
-    
-    # Create WordCloud
     wordcloud = WordCloud(width=800, height=400, background_color='white', mask=mask).generate_from_frequencies(word_freq_dict)
-    
     ax.imshow(wordcloud, interpolation='bilinear')
-    ax.axis('off')  # Hide axes
+    ax.axis('off') 
     ax.set_title(f'Word Cloud for {title}')
 
 def plot_ngrams(ngram_freq, title, ax):
     if not ngram_freq:
         ax.set_title(f'Top N-grams for {title}')
-        ax.axis('off')  # Hide axis if no n-grams
+        ax.axis('off') 
         return
     
     ngrams, counts = zip(*ngram_freq)
     ax.barh(ngrams, counts, color='skyblue')
     ax.set_title(f'Top N-grams for {title}')
-    ax.invert_yaxis()  # Invert y-axis to have the highest count on top
+    ax.invert_yaxis() 
     ax.set_xlabel('Frequency')
 
 def plot_reviews(positive_ngrams, negative_ngrams, neutral_ngrams, mask=None):
@@ -482,7 +406,7 @@ def plot_reviews(positive_ngrams, negative_ngrams, neutral_ngrams, mask=None):
 
 ############################# INTERPRETATION OF RESULTS + RECOMMENDATIONS ###########################################
 def result_page1(chosen_year, total_reviews, sentiment_data, is_yearly=True):
-    analysis_output1 = []  # List to collect analysis strings
+    analysis_output1 = [] 
 
     if is_yearly:
         analysis_output1.append("## Analyzing customer sentiment trends across all years:\n")
@@ -595,12 +519,12 @@ def result_page1(chosen_year, total_reviews, sentiment_data, is_yearly=True):
         analysis_output1.append("\n### Recommendations:\n")
         analysis_output1.append("Investigate months with high negative sentiment to identify potential service issues. Also, replicate successful strategies from months with high positive sentiment.\n")
 
-    # Join all collected analysis strings into a single formatted output
     return "\n".join(analysis_output1)
 
 
 def result_page2(reviews_df, chosen_year):
-    analysis_output2 = []  # List to collect analysis strings
+    analysis_output2 = [] 
+
     # Separate domestic and international ratings
     domestic_ratings = reviews_df[reviews_df['is_domestic'] == True]
     international_ratings = reviews_df[reviews_df['is_domestic'] == False]
@@ -631,7 +555,7 @@ def result_page2(reviews_df, chosen_year):
         else:
             analysis_output2.append(f"- {category.replace('_', ' ').title()}: Ratings are similar for both domestic and international flights ({domestic_avg:.2f}).")
 
-    # Tailored recommendations and suggestions based on category comparisons
+    # Recommendations
     analysis_output2.append("\n### Recommendations: ")
     
     for category in rating_columns:
@@ -730,7 +654,6 @@ def result_page3(traveller_rating_summary, sentiment_distribution_percentage, ch
 def result_page4(seat_rating_summary, chosen_year):
     analysis_output4 = []
 
-    # INTERPRETATION OF RESULTS: SEAT TYPE AND RATING ANALYSIS
     analysis_output4.append(f"## Seat Type Analysis ({chosen_year})")
     
     # Analyzing overall rating by seat type
@@ -779,91 +702,57 @@ button3 = pn.widgets.Button(name="Sentiment by Traveler Type", button_type="prim
 button4 = pn.widgets.Button(name="Average Ratings by Seat Type", button_type="primary")
 button5 = pn.widgets.Button(name="N-gram Analysis by Sentiment", button_type="primary")
 
-# Create an area to display the content for different pages
 main_area = pn.Column()
 
 def typewriter_effect(text, pane, delay=0.05):
     """
     A function that updates a Markdown pane to simulate a typewriter effect.
     """
-    pane.object = ""  # Clear the pane initially
+    pane.object = "" 
     for char in text:
-        pane.object += char  # Append each character
-        pane.param.trigger('object')  # Update the pane
-        time.sleep(delay)  # Delay to simulate typing
+        pane.object += char  
+        pane.param.trigger('object')  
+        time.sleep(delay)
 
 def show_page1(event=None):
     chosen_year = year_selector.value
     main_area.clear()  
-    
-    # Unpack all three returned values including total_reviews
     year_reviews, sentiment_counts, total_reviews = get_sentiment_analysis(reviews_df, chosen_year)
-    
-    # Pass total_reviews to the plot_monthly_sentiment function
     sentiment_plots = plot_monthly_sentiment(sentiment_counts, chosen_year, total_reviews)
 
-    # Create the GridSpec layout
     grid = pn.GridSpec()
-
-    # Button for analysis
     button_analyze = pn.widgets.Button(name="Analyse", button_type="primary", width=150, height=50)
-    
-    # Assign sentiment plots to the first row
     grid[0, 1:4] = pn.pane.HoloViews(sentiment_plots, align='center') 
     grid[0, 5] = button_analyze
+    analysis_output_pane = pn.pane.Markdown("", width=900, height=300) 
+    grid[1, 1:4] = analysis_output_pane 
 
-    # Create a Markdown pane to display analysis results
-    analysis_output_pane = pn.pane.Markdown("", width=900, height=300)  # Set an appropriate height
-
-    # Add the Markdown pane to the second row of the grid
-    grid[1, 1:4] = analysis_output_pane  # This will now not overlap with the sentiment plots
-
-    # Define what happens when the button is clicked
     def analyze_results1(event):
-        # Call the interpret_results function to get results as text
         result_text = result_page1(chosen_year, total_reviews, sentiment_counts, is_yearly=(chosen_year == 'ALL'))
-        
-        # Start a new thread for the typewriter effect to avoid blocking the UI
         threading.Thread(target=typewriter_effect, args=(result_text, analysis_output_pane)).start()
 
-    # Link the button's click event to the analyze function
     button_analyze.on_click(analyze_results1)
-
-    # Finally append the grid to the main area
     main_area.append(grid)
 
 
 def show_page2(event=None):
     chosen_year = year_selector.value 
-    # Unpack year_reviews, ignore other returned values
-    year_reviews, _, _ = get_sentiment_analysis(reviews_df, chosen_year)
-    
+    year_reviews, _, _ = get_sentiment_analysis(reviews_df, chosen_year)    
     main_area.clear()
     avg_ratings_plot = plot_avg_ratings(year_reviews, chosen_year)
 
-    # Create the GridSpec layout
     grid = pn.GridSpec()
-
-    # Button for analysis
     button_analyze = pn.widgets.Button(name="Analyze", button_type="primary", width=150, height=50)
-    
     grid[0,1:4] = pn.pane.HoloViews(avg_ratings_plot)
     grid[0, 5] = button_analyze
-
-    # Create a Markdown pane to display analysis results
     analysis_output_pane = pn.pane.Markdown("", width=900, height=300)
-    grid[1, 1:4] = analysis_output_pane  # Place the analysis output pane in the grid
+    grid[1, 1:4] = analysis_output_pane  
 
     def analyze_results2(event):
-        # Call the interpret_route_performance function to get results as text
         result_text = result_page2(year_reviews, chosen_year)
-
-        # Start a new thread for the typewriter effect to avoid blocking the UI
         threading.Thread(target=typewriter_effect, args=(result_text, analysis_output_pane)).start()
 
-    # Link the button's click event to the analyze function
     button_analyze.on_click(analyze_results2)
-
     main_area.append(grid)  # Add the grid to the main area
 
 
@@ -871,7 +760,6 @@ def show_page2(event=None):
 def show_page3(attr=None, old=None, new=None):
     """Display sentiment distribution by traveler type using Bokeh."""
     chosen_year = year_selector.value
-    # Unpack year_reviews, ignore other returned values
     year_reviews, _, _ = get_sentiment_analysis(reviews_df, chosen_year)
     
     traveller_rating_summary = year_reviews.groupby('type_of_traveller').agg(
@@ -880,103 +768,68 @@ def show_page3(attr=None, old=None, new=None):
         count=('rating', 'size')
     ).reset_index().sort_values('mean', ascending=False)
 
-    # Sentiment distribution as a percentage for each traveler type
     sentiment_distribution_percentage = year_reviews.groupby('type_of_traveller')['vader_sentiment'].value_counts(normalize=True).unstack(fill_value=0)
-    
     main_area.clear()
 
-    # Create the GridSpec layout
     grid = pn.GridSpec()
-
-    # Button for analysis
     button_analyze = pn.widgets.Button(name="Analyze", button_type="primary", width=150, height=50)
     
     grid[0, 1:4] = pn.pane.Bokeh(plot_traveller_sentiments(year_reviews, chosen_year))
     grid[0, 5] = button_analyze
-
-    # Create a Markdown pane to display analysis results
     analysis_output_pane = pn.pane.Markdown("", width=900, height=300)
-    grid[1, 1:4] = analysis_output_pane  # Place the analysis output pane in the grid
+    grid[1, 1:4] = analysis_output_pane  
 
     def analyze_results3(event):
-        # Call the interpret_traveller_performance function to get results as text
         result_text = result_page3(traveller_rating_summary, sentiment_distribution_percentage, chosen_year)
-
-        # Start a new thread for the typewriter effect to avoid blocking the UI
         threading.Thread(target=typewriter_effect, args=(result_text, analysis_output_pane)).start()
 
-    # Link the button's click event to the analyze function
     button_analyze.on_click(analyze_results3)
-
     main_area.append(grid)
 
 
 def show_page4(event=None):
     chosen_year = year_selector.value 
-    # Unpack year_reviews, ignore other returned values
     year_reviews, _, _ = get_sentiment_analysis(reviews_df, chosen_year)
-    
-    # Group by seat type to analyze ratings
     seat_rating_summary = year_reviews.groupby('seat_type')['rating'].agg(['mean', 'median', 'count']).reset_index()
     seat_rating_summary = seat_rating_summary.sort_values(by='mean', ascending=False)
-
     main_area.clear()
 
-    # Create the GridSpec layout
     grid = pn.GridSpec()
-
-    # Button for analysis
     button_analyze = pn.widgets.Button(name="Analyze", button_type="primary", width=150, height=50)
-    
-
     grid[0, 1:4] = pn.pane.HoloViews(plot_seat_type_ratings(year_reviews, chosen_year), height=600)
     grid[0, 5] = button_analyze
-
-    # Create a Markdown pane to display analysis results
     analysis_output_pane = pn.pane.Markdown("", width=900, height=300)
-    grid[1, 1:4] = analysis_output_pane  # Place the analysis output pane in the grid
+    grid[1, 1:4] = analysis_output_pane 
 
     def analyze_results4(event):
-        # Call the interpret_traveller_performance function to get results as text
         result_text = result_page4(seat_rating_summary, chosen_year)
-
-        # Start a new thread for the typewriter effect to avoid blocking the UI
         threading.Thread(target=typewriter_effect, args=(result_text, analysis_output_pane)).start()
 
-    # Link the button's click event to the analyze function
     button_analyze.on_click(analyze_results4)
     main_area.append(grid)
 
 
 def show_page5(event=None):
-    # Get the selected year and sentiment analysis for that year
     chosen_year = year_selector.value
-    # Unpack year_reviews, ignore other returned values
     year_reviews, _, _ = get_sentiment_analysis(reviews_df, chosen_year)
-
-    # Generate top N-grams for each sentiment (positive, negative, neutral)
     positive_reviews = year_reviews[year_reviews['vader_sentiment'] == 'Positive']['cleaned_review']
     negative_reviews = year_reviews[year_reviews['vader_sentiment'] == 'Negative']['cleaned_review']
     neutral_reviews = year_reviews[year_reviews['vader_sentiment'] == 'Neutral']['cleaned_review']
-
     top_positive_ngrams = get_top_n_ngrams(positive_reviews, 20)
     top_negative_ngrams = get_top_n_ngrams(negative_reviews, 20)
     top_neutral_ngrams = get_top_n_ngrams(neutral_reviews, 10)
-
-    # Clear the current main area panel
     main_area.clear()
 
-    # Plot and append the figures for positive, negative, and neutral n-grams
     if top_positive_ngrams:
-        plot_reviews(top_positive_ngrams, None, None, mask=mask)  # Positive n-grams
+        plot_reviews(top_positive_ngrams, None, None, mask=mask)
         main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
 
     if top_negative_ngrams:
-        plot_reviews(None, top_negative_ngrams, None, mask=mask)  # Negative n-grams
+        plot_reviews(None, top_negative_ngrams, None, mask=mask)
         main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
 
     if top_neutral_ngrams:
-        plot_reviews(None, None, top_neutral_ngrams, mask=mask)  # Neutral n-grams
+        plot_reviews(None, None, top_neutral_ngrams, mask=mask)
         main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
 
 
@@ -984,25 +837,16 @@ def show_home_page(event=None):
     chosen_year = year_selector.value  
     main_area.clear()  
     
-    # Create a GridSpec layout
     grid = pn.GridSpec(sizing_mode='stretch_both')
-
-    # Add the overall rating at the top of the home page in a single cell
     grid[0, 2] = pn.Column(rating_display, overall_category_ratings)  
-
-    # Display holoviews plots for sentiment analysis
     year_reviews, sentiment_counts, total_reviews = get_sentiment_analysis(reviews_df, chosen_year)
     sentiment_plots = plot_monthly_sentiment(sentiment_counts, chosen_year, total_reviews)
-    
-    # Set the sizing mode and alignment for each plot
     grid[0, 0:2] = pn.pane.HoloViews(sentiment_plots, sizing_mode='stretch_both', align='center')  
     grid[1, 0] = pn.pane.HoloViews(plot_avg_ratings(year_reviews, chosen_year), sizing_mode='stretch_both', align='center')  
     grid[1, 1] = pn.pane.Bokeh(plot_traveller_sentiments(year_reviews, chosen_year), sizing_mode='stretch_both', align='center')
     grid[1, 2] = pn.pane.HoloViews(plot_seat_type_ratings(year_reviews, chosen_year), sizing_mode='stretch_both', align='center')
 
-    # Append the grid layout to the main area
     main_area.append(grid)
-
 
 
 # Attach callbacks to buttons
