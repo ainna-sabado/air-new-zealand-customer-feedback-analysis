@@ -1,35 +1,39 @@
-import panel as pn
+# Data manipulation and analysis
 import pandas as pd
+import numpy as np
+from collections import Counter
+import re
+
+# Visualization
+import panel as pn
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
-from nltk.stem import WordNetLemmatizer
-from nltk.corpus import stopwords
-from collections import Counter
-from nltk.util import ngrams
-import re
-from PIL import Image
-from wordcloud import WordCloud
 import holoviews as hv
-from bokeh.models import HoverTool
-from bokeh.models import Select, ColumnDataSource
+from wordcloud import WordCloud
+from bokeh.models import HoverTool, Select, ColumnDataSource, Div
 from bokeh.plotting import figure
-from bokeh.layouts import column
+from bokeh.layouts import gridplot, column
 from bokeh.palettes import Category20
-import numpy as np
-import pandas as pd
 from bokeh.transform import cumsum
 
-# Callback functions that respect the selected year
+# Natural Language Processing
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
+from nltk.util import ngrams
+
+# Additional imports for threading and timing
 import time
 import threading
+from PIL import Image
+
+
 
 pn.extension()
 hv.extension('bokeh')
 
 ############################ LOAD DATASETS ############################
 # Set the CSV file path and year for analysis
-csv_file = '/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/nz_reviews_with_routes.csv'
+csv_file = '/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/notebook/nz_reviews_with_routes.csv'
 
 # Load the dataset
 reviews_df = pd.read_csv(csv_file)
@@ -44,11 +48,11 @@ available_years = [str(year) for year in sorted(reviews_df['year'].unique())] + 
 
 
 ############################ OVERALL RESULTS ############################
-all_reviews = "air_nz_cleaned_data.csv"
-all_reviews = pd.read_csv(all_reviews)
+#all_reviews = "air_nz_cleaned_data.csv"
+#all_reviews = pd.read_csv(all_reviews)
 
 # Overall average rating
-average_rating = all_reviews['rating'].mean()
+average_rating = reviews_df['rating'].mean()
 
 rating_html = """
 <div style="text-align: center; font-size: 24px; color: #333; background-color: #f8f9fa; border-radius: 8px; padding: 10px;">
@@ -62,7 +66,7 @@ rating_display = pn.pane.HTML(rating_html, width=300, height=100)
 rating_columns = ['seat_comfort', 'cabin_staff_service', 'food_&_beverages', 'ground_service', 
                   'wifi_&_connectivity', 'value_for_money', 'inflight_entertainment']
 
-average_ratings_by_category = np.ceil(all_reviews[rating_columns].mean())
+average_ratings_by_category = np.ceil(reviews_df[rating_columns].mean())
 
 top_5_ratings = average_ratings_by_category.sort_values(ascending=False).head(5)
 
@@ -183,7 +187,9 @@ def plot_avg_ratings(year_reviews, chosen_year):
         .str.title()  
     )
     
-    average_ratings_melted = average_ratings_melted.sort_values(by=['category', 'average_rating'], ascending=[True, False])
+    # Sort by average_rating only, highest to lowest
+    average_ratings_melted = average_ratings_melted.sort_values(by='average_rating', ascending=False)
+
     color_mapping = {'Domestic': '#1f77b4', 'International': '#ff7f0e'}
     
     average_ratings_melted['category'] = pd.Categorical(
@@ -221,6 +227,7 @@ def plot_avg_ratings(year_reviews, chosen_year):
     )
 
     return bars
+
 
 
 ### SENTIMENT DISTRIBUTION BY TRAVELER TYPE
@@ -404,12 +411,138 @@ def plot_reviews(positive_ngrams, negative_ngrams, neutral_ngrams, mask=None):
         plt.tight_layout()
 
 
+def get_color(sentiment_score):
+    """
+    Returns a color based on the sentiment score.
+    Positive sentiment -> Green
+    Negative sentiment -> Red
+    Neutral sentiment -> Gray
+    """
+    if sentiment_score > 0.5:
+        return "green"
+    elif sentiment_score < 0:
+        return "red"
+    else:
+        return "gray"
+
+
+def clean_comments(comments):
+    cleaned_comments = comments.str.strip()  
+    cleaned_comments = cleaned_comments.str.replace(r'^\s*\"|\"$', '', regex=True)  
+    cleaned_comments = cleaned_comments.str.replace(r'\s+', ' ', regex=True) 
+    return cleaned_comments
+
+def sentiment_by_route(domestic_data, international_data, domestic_colors, international_colors, domestic_height, international_height, year_reviews, chosen_year):
+    domestic_comments = (
+        year_reviews[year_reviews['is_domestic'] == True]
+        .groupby('route')['header']
+        .apply(lambda x: ', '.join(clean_comments(x)).strip())  
+        .reset_index()
+    )
+    
+    international_comments = (
+        year_reviews[year_reviews['is_domestic'] == False]
+        .groupby('route')['header']
+        .apply(lambda x: ', '.join(clean_comments(x)).strip())  
+        .reset_index()
+    )
+
+    # Merge comments back to sentiment data to ensure correct alignment
+    domestic_mean_sentiment_with_comments = domestic_data.merge(domestic_comments, on='route', how='left')
+    international_mean_sentiment_with_comments = international_data.merge(international_comments, on='route', how='left')
+
+    # Domestic Routes Plot
+    if not domestic_mean_sentiment_with_comments.empty:
+        domestic_source = ColumnDataSource(data={
+            'route': domestic_mean_sentiment_with_comments['route'],
+            'sentiment': domestic_mean_sentiment_with_comments['vader_sentiment_numeric'],
+            'color': domestic_colors,
+            'comments': domestic_mean_sentiment_with_comments['header']
+        })
+
+        domestic_fig = figure(
+            y_range=domestic_mean_sentiment_with_comments['route'].tolist(),
+            height=int(domestic_height * 100), 
+            title="Domestic Routes",
+            toolbar_location=None,
+            tools="",
+            x_range=(-1.1, 1.1)
+        )
+
+        domestic_fig.hbar(
+            y='route', 
+            right='sentiment', 
+            height=0.3, 
+            color='color', 
+            source=domestic_source
+        )
+
+        # Add HoverTool for domestic routes
+        domestic_hover = HoverTool()
+        domestic_hover.tooltips = [("Route", "@route"), ("Sentiment Score", "@sentiment"), ("Comments", "@comments")]
+        domestic_fig.add_tools(domestic_hover)
+
+        domestic_fig.xaxis.axis_label = "Sentiment Score"
+        domestic_fig.yaxis.axis_label = "Routes"
+    else:
+        domestic_fig = figure(title="No Domestic Routes Data Available")
+
+    # International Routes Plot
+    if not international_mean_sentiment_with_comments.empty:
+        international_source = ColumnDataSource(data={
+            'route': international_mean_sentiment_with_comments['route'],
+            'sentiment': international_mean_sentiment_with_comments['vader_sentiment_numeric'],
+            'color': international_colors,
+            'comments': international_mean_sentiment_with_comments['header']  # Use the correct comment column
+        })
+
+        international_fig = figure(
+            y_range=international_mean_sentiment_with_comments['route'].tolist(),
+            height=int(international_height * 100),
+            title="International Routes",
+            toolbar_location=None,
+            tools="",
+            x_range=(-1.1, 1.1)
+        )
+
+        international_fig.hbar(
+            y='route', 
+            right='sentiment', 
+            height=0.3, 
+            color='color', 
+            source=international_source
+        )
+
+        # Add HoverTool for international routes
+        international_hover = HoverTool()
+        international_hover.tooltips = [("Route", "@route"), ("Sentiment Score", "@sentiment"), ("Comments", "@comments")]
+        international_fig.add_tools(international_hover)
+
+        international_fig.xaxis.axis_label = "Sentiment Score"
+        international_fig.yaxis.axis_label = "Routes"
+    else:
+        international_fig = figure(title="No International Routes Data Available")
+
+    # Combine Domestic and International Plots in a Grid
+    combined_grid = gridplot([[domestic_fig, international_fig]])
+
+    # Create a title above the plots
+    title_div = Div(text=f"<h2>Routes with Best and Worst Customer Experience ({chosen_year})</h2>", width=800)
+
+    # Combine the title and the grid in a column layout
+    layout_with_title = column(title_div, combined_grid)
+    
+    return layout_with_title
+
+
+
+
 ############################# INTERPRETATION OF RESULTS + RECOMMENDATIONS ###########################################
 def result_page1(chosen_year, total_reviews, sentiment_data, is_yearly=True):
     analysis_output1 = [] 
 
     if is_yearly:
-        analysis_output1.append("## Analyzing customer sentiment trends across all years:\n")
+        analysis_output1.append("### Analyzing customer sentiment trends across all years:\n")
         
         # Trend Analysis
         sentiment_trends = {}
@@ -530,7 +663,7 @@ def result_page2(reviews_df, chosen_year):
     international_ratings = reviews_df[reviews_df['is_domestic'] == False]
 
     # Output the year of analysis
-    analysis_output2.append(f"## Analyzing customer satisfaction for domestic and international flights in **{chosen_year}**:")
+    analysis_output2.append(f"### Analyzing customer satisfaction for domestic and international flights in **{chosen_year}**:")
     
     # Compare overall satisfaction
     domestic_overall_avg = domestic_ratings[rating_columns].mean().mean()
@@ -618,7 +751,7 @@ def result_page3(traveller_rating_summary, sentiment_distribution_percentage, ch
         analysis_output3.append(f"  - {row['type_of_traveller']} has a median rating of {row['median']:.2f}.")
 
     # Analyze sentiment distribution by traveler type
-    analysis_output3.append(f"\n ## Sentiment Analysis by Traveler Type")
+    analysis_output3.append(f"\n ### Sentiment Analysis by Traveler Type")
     
     for traveller_type in sentiment_distribution_percentage.index:
         sentiment = sentiment_distribution_percentage.loc[traveller_type]
@@ -701,6 +834,7 @@ button2 = pn.widgets.Button(name="Average Ratings per Category", button_type="pr
 button3 = pn.widgets.Button(name="Sentiment by Traveler Type", button_type="primary")
 button4 = pn.widgets.Button(name="Average Ratings by Seat Type", button_type="primary")
 button5 = pn.widgets.Button(name="N-gram Analysis by Sentiment", button_type="primary")
+button6 = pn.widgets.Button(name="Routes with Best and Worst Customer Experience", button_type="primary")
 
 main_area = pn.Column()
 
@@ -832,6 +966,65 @@ def show_page5(event=None):
         plot_reviews(None, None, top_neutral_ngrams, mask=mask)
         main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
 
+def show_page6(event=None):
+    # Get the selected year from the UI
+    chosen_year = year_selector.value 
+    
+    if chosen_year is None:
+        print("No year selected")
+        return
+
+    # Perform sentiment analysis for the chosen year
+    year_reviews, _, _ = get_sentiment_analysis(reviews_df, chosen_year)
+    
+    # Mapping vader_sentiment to numerical values
+    sentiment_mapping = {'Negative': -1.0, 'Neutral': 0.5, 'Positive': 1.0} 
+    year_reviews.loc[:, 'vader_sentiment_numeric'] = year_reviews['vader_sentiment'].map(sentiment_mapping)
+
+    # Split the reviews into domestic and international routes
+    domestic_routes = year_reviews[year_reviews['is_domestic'] == True]
+    international_routes = year_reviews[year_reviews['is_domestic'] == False]
+    
+    # Calculate the mean sentiment per route for both categories
+    domestic_mean_sentiment = domestic_routes.groupby('route')['vader_sentiment_numeric'].mean().reset_index()
+    international_mean_sentiment = international_routes.groupby('route')['vader_sentiment_numeric'].mean().reset_index()
+    
+    # Sort by mean sentiment to get the best and worst routes at the top
+    domestic_mean_sentiment_sorted = domestic_mean_sentiment.sort_values(by='vader_sentiment_numeric', ascending=False)
+    international_mean_sentiment_sorted = international_mean_sentiment.sort_values(by='vader_sentiment_numeric', ascending=False)
+
+    # Apply color mapping to the sentiment data
+    domestic_colors = domestic_mean_sentiment_sorted['vader_sentiment_numeric'].apply(get_color).tolist()
+    international_colors = international_mean_sentiment_sorted['vader_sentiment_numeric'].apply(get_color).tolist()
+
+    # Calculate dynamic heights based on the number of routes
+    base_height = 6
+    height_per_route = 0.4
+    fig_height_domestic = base_height + (len(domestic_mean_sentiment_sorted) * height_per_route)
+    fig_height_international = base_height + (len(international_mean_sentiment_sorted) * height_per_route)
+    
+    # Clear the main area before rendering new content
+    main_area.clear()
+
+    # Create the sentiment charts using the improved function
+    sentiment_chart = sentiment_by_route(
+        domestic_mean_sentiment_sorted, 
+        international_mean_sentiment_sorted, 
+        domestic_colors, 
+        international_colors, 
+        fig_height_domestic, 
+        fig_height_international,
+        year_reviews,
+        chosen_year
+    )
+
+    # Use a grid layout to display the sentiment chart in page 6
+    grid = pn.GridSpec(sizing_mode='stretch_both')
+    grid[0, 0:4] = pn.pane.Bokeh(sentiment_chart)  
+
+    # Add the grid to the main area
+    main_area.append(grid)
+
 
 def show_home_page(event=None):
     chosen_year = year_selector.value  
@@ -856,6 +1049,7 @@ button2.on_click(lambda event: set_current_page('page2'))
 button3.on_click(lambda event: set_current_page('page3'))
 button4.on_click(lambda event: set_current_page('page4'))
 button5.on_click(lambda event: set_current_page('page5'))
+button6.on_click(lambda event: set_current_page('page6'))
 
 
 # Set the current page and update content based on year and active page
@@ -874,6 +1068,8 @@ def set_current_page(page):
         show_page4()
     elif page == 'page5':
         show_page5()
+    elif page == 'page6':
+        show_page6()
 
 
 # Automatically update the page content when the year selector is changed
@@ -890,6 +1086,8 @@ def update_on_year_change(event):
         show_page4()
     elif current_page == 'page5':
         show_page5()
+    elif current_page == 'page6':
+        show_page6()
 
 
 year_selector.param.watch(update_on_year_change, 'value')
@@ -905,6 +1103,7 @@ sidebar = pn.Column(
     button3,
     button4,
     button5,
+    button6,
     styles={"width": "100%", "padding": "15px"}
 )
 
