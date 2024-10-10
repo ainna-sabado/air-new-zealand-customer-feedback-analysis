@@ -530,9 +530,9 @@ def sentiment_by_route(domestic_data, international_data, domestic_colors, inter
     title_div = Div(text=f"<h2>Routes with Best and Worst Customer Experience ({chosen_year})</h2>", width=800)
 
     # Combine the title and the grid in a column layout
-    layout_with_title = column(title_div, combined_grid)
+    route_sentiments = column(title_div, combined_grid)
     
-    return layout_with_title
+    return route_sentiments
 
 
 
@@ -979,7 +979,7 @@ def show_page6(event=None):
     
     # Mapping vader_sentiment to numerical values
     sentiment_mapping = {'Negative': -1.0, 'Neutral': 0.5, 'Positive': 1.0} 
-    year_reviews.loc[:, 'vader_sentiment_numeric'] = year_reviews['vader_sentiment'].map(sentiment_mapping)
+    year_reviews.loc[:, 'vader_sentiment_numeric'] = year_reviews['rating_sentiment'].map(sentiment_mapping)
 
     # Split the reviews into domestic and international routes
     domestic_routes = year_reviews[year_reviews['is_domestic'] == True]
