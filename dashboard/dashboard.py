@@ -26,6 +26,7 @@ import time
 import threading
 from PIL import Image
 
+import subprocess
 
 
 pn.extension()
@@ -101,7 +102,89 @@ html_content += "</div>"
 overall_category_ratings = pn.pane.HTML(html_content, width=500)
 
 ############################ WIDGET FOR YEAR SELECTION ############################
-year_selector = pn.widgets.Select(name='Select Year', options=available_years, value='ALL', sizing_mode='stretch_width')
+year_selector = pn.widgets.Select(name='Select Year', options=available_years, value='ALL', sizing_mode='fixed', width=200)
+
+############################ REFRESH DASHBOARD ############################
+
+# Alert message
+text = "Are you sure you want to refresh? This will take 5-10 mins."
+
+# Create a Button in the dashboard
+refresh_button = pn.widgets.Button(name='Refresh Data', button_type='warning', button_style='outline', icon='refresh', sizing_mode='fixed', width=200)
+
+# Create alert pane and buttons for confirmation
+alert_pane = pn.pane.Alert(text, alert_type='warning')
+confirm_button = pn.widgets.Button(name='Yes', button_type='success')
+cancel_button = pn.widgets.Button(name='No', button_type='danger')
+
+# Create a row to hold the buttons
+buttons_row = pn.Row(confirm_button, cancel_button, align='center')
+
+# Create a column to hold the alert and buttons
+alert_panel = pn.Column(alert_pane, buttons_row)
+
+# Set the alert panel to be hidden initially
+alert_panel.visible = False
+
+# Function to refresh the dashboard
+def refresh_dashboard(event):
+    try:
+        # Step 1: Run the web-scraping notebook
+        subprocess.run(
+            ["jupyter", "nbconvert", "--to", "notebook", "--execute", 
+             "/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/notebook/web-scraping.ipynb"],
+            check=True
+        )
+
+        # Step 2: Run the EDA notebook
+        subprocess.run(
+            ["jupyter", "nbconvert", "--to", "notebook", "--execute", 
+             "/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/notebook/eda-customer-feedback.ipynb"],
+            check=True
+        )
+
+        # Step 3: Temporarily change the button label to indicate refresh
+        refresh_button.name = "Refreshing..."
+        
+        # Step 4: Reload the dataset
+        global reviews_df
+        reviews_df = pd.read_csv(csv_file)  # Reload the data after processing
+
+        # Convert date column to datetime and extract the year
+        reviews_df['date'] = pd.to_datetime(reviews_df['date'], format='%Y-%m-%d')
+        reviews_df['year'] = reviews_df['date'].dt.year
+        reviews_df['month'] = reviews_df['date'].dt.strftime('%B')
+
+        # Available years for dropdown
+        available_years = [str(year) for year in sorted(reviews_df['year'].unique())] + ['ALL']
+ 
+        time.sleep(1)  # Simulate a refresh action
+        refresh_button.name = "Refresh Data"  
+        
+        show_home_page()  
+        
+    except subprocess.CalledProcessError as e:
+        print(f"Error running notebook: {e}")
+
+# Function to handle the refresh button click
+def show_alert(event):
+    alert_panel.visible = True  # Show the alert panel
+
+# Attach the show_alert function to the refresh_button's click event
+refresh_button.on_click(show_alert)
+
+# Callback for confirmation button
+def confirm_refresh(event):
+    refresh_dashboard(event)  # Refresh the dashboard
+    alert_panel.visible = False  # Hide the alert panel after confirmation
+
+# Callback for cancel button
+def cancel_refresh(event):
+    alert_panel.visible = False  # Hide the alert panel without doing anything
+
+# Attach callbacks to the buttons
+confirm_button.on_click(confirm_refresh)
+cancel_button.on_click(cancel_refresh)
 
 ############################ CREATE CHARTS ############################
 current_page = 'home'
@@ -828,13 +911,13 @@ def result_page4(seat_rating_summary, chosen_year):
 
 ############################# WIDGETS & CALLBACK ###########################################
 # Create buttons for the sidebar navigation
-button_home = pn.widgets.Button(name="Home", button_type="primary")
-button1 = pn.widgets.Button(name="Overall Sentiment Analysis", button_type="primary")
-button2 = pn.widgets.Button(name="Average Ratings per Category", button_type="primary")
-button3 = pn.widgets.Button(name="Sentiment by Traveler Type", button_type="primary")
-button4 = pn.widgets.Button(name="Average Ratings by Seat Type", button_type="primary")
-button5 = pn.widgets.Button(name="N-gram Analysis by Sentiment", button_type="primary")
-button6 = pn.widgets.Button(name="Routes with Best and Worst Customer Experience", button_type="primary")
+button_home = pn.widgets.Button(name="Home", button_type="light", icon='home', sizing_mode='fixed', width=200, height=30)
+button1 = pn.widgets.Button(name="Overall Sentiment Analysis", button_type="light", icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-line"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 19l16 0" /><path d="M4 15l4 -6l4 2l4 -5l4 4" /></svg>', sizing_mode='fixed', width=200, height=30)
+button2 = pn.widgets.Button(name="AVG Ratings by Route Type", button_type="light", sizing_mode='fixed', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-sankey"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 3v18h18" /><path d="M3 6h18" /><path d="M3 8c10 0 8 9 18 9" /></svg>', width=200, height=30)
+button3 = pn.widgets.Button(name="Sentiment by Traveler Type", button_type="light", sizing_mode='fixed', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-pie-3"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12l-6.5 5.5" /><path d="M12 3v9h9" /><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /></svg>', width=200, height=30)
+button4 = pn.widgets.Button(name="AVG Ratings by Seat Type", button_type="light", sizing_mode='fixed', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-bar"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M4 20h14" /></svg>', width=200, height=30)
+button5 = pn.widgets.Button(name="Wordcloud + Ngram", button_type="light", sizing_mode='fixed', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-language"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 5h7" /><path d="M9 3v2c0 4.418 -2.239 8 -5 8" /><path d="M5 9c0 2.144 2.952 3.908 6.7 4" /><path d="M12 20l4 -9l4 9" /><path d="M19.1 18h-6.2" /></svg>', width=200, height=30)
+button6 = pn.widgets.Button(name="Sentiment by Route", button_type="light", sizing_mode='fixed', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-plane-inflight"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 11.085h5a2 2 0 1 1 0 4h-15l-3 -6h3l2 2h3l-2 -7h3l4 7z" /><path d="M3 21h18" /></svg>', width=200, height=30)
 
 main_area = pn.Column()
 
@@ -855,7 +938,7 @@ def show_page1(event=None):
     sentiment_plots = plot_monthly_sentiment(sentiment_counts, chosen_year, total_reviews)
 
     grid = pn.GridSpec()
-    button_analyze = pn.widgets.Button(name="Analyse", button_type="primary", width=150, height=50)
+    button_analyze = pn.widgets.Button(name="Analyse", button_type="primary", button_style='outline', width=150, height=50)
     grid[0, 1:4] = pn.pane.HoloViews(sentiment_plots, align='center') 
     grid[0, 5] = button_analyze
     analysis_output_pane = pn.pane.Markdown("", width=900, height=300) 
@@ -876,7 +959,7 @@ def show_page2(event=None):
     avg_ratings_plot = plot_avg_ratings(year_reviews, chosen_year)
 
     grid = pn.GridSpec()
-    button_analyze = pn.widgets.Button(name="Analyze", button_type="primary", width=150, height=50)
+    button_analyze = pn.widgets.Button(name="Analyse", button_type="primary", button_style='outline', width=150, height=50)
     grid[0,1:4] = pn.pane.HoloViews(avg_ratings_plot)
     grid[0, 5] = button_analyze
     analysis_output_pane = pn.pane.Markdown("", width=900, height=300)
@@ -906,7 +989,7 @@ def show_page3(attr=None, old=None, new=None):
     main_area.clear()
 
     grid = pn.GridSpec()
-    button_analyze = pn.widgets.Button(name="Analyze", button_type="primary", width=150, height=50)
+    button_analyze = pn.widgets.Button(name="Analyse", button_type="primary", button_style='outline', width=150, height=50)
     
     grid[0, 1:4] = pn.pane.Bokeh(plot_traveller_sentiments(year_reviews, chosen_year))
     grid[0, 5] = button_analyze
@@ -929,7 +1012,7 @@ def show_page4(event=None):
     main_area.clear()
 
     grid = pn.GridSpec()
-    button_analyze = pn.widgets.Button(name="Analyze", button_type="primary", width=150, height=50)
+    button_analyze = pn.widgets.Button(name="Analyse", button_type="primary", button_style='outline', width=150, height=50)
     grid[0, 1:4] = pn.pane.HoloViews(plot_seat_type_ratings(year_reviews, chosen_year), height=600)
     grid[0, 5] = button_analyze
     analysis_output_pane = pn.pane.Markdown("", width=900, height=300)
@@ -1042,6 +1125,7 @@ def show_home_page(event=None):
     main_area.append(grid)
 
 
+
 # Attach callbacks to buttons
 button_home.on_click(lambda event: set_current_page('home'))
 button1.on_click(lambda event: set_current_page('page1'))
@@ -1095,8 +1179,9 @@ year_selector.param.watch(update_on_year_change, 'value')
 
 #################### SIDEBAR LAYOUT ##########################
 sidebar = pn.Column(
-    pn.pane.Markdown("## Pages"),
+    pn.pane.Markdown("## Menu"),
     year_selector,  
+    refresh_button,
     button_home,  
     button1,
     button2,
@@ -1108,15 +1193,24 @@ sidebar = pn.Column(
 )
 
 ###################### APP LAYOUT ##############################
+
 dashboard = pn.template.BootstrapTemplate(
     title="Customer Feedback Analysis",
     sidebar=[sidebar],
-    main=[main_area],
+    main=[alert_panel, main_area],
     header_background="black", 
     site="Air New Zealand",
+    logo="/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/air-nz.png",
     theme=pn.template.DarkTheme,
     sidebar_width=250,
 )
+
+# Callback to show the alert panel
+def display_alert_panel(event):
+    alert_panel.visible = True  # Make the alert panel visible
+
+# Add the display alert function to the refresh button click event
+refresh_button.on_click(display_alert_panel)
 
 # Serve the Panel app
 dashboard.show()
