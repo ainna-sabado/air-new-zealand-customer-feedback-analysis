@@ -17,19 +17,20 @@ from bokeh.palettes import Category20
 from bokeh.transform import cumsum
 
 # Natural Language Processing
-import nltk
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import stopwords
 from nltk.util import ngrams
-
-nltk.data.path.append('./nltk_data')
 
 # Additional imports for threading and timing
 import time
 import threading
 from PIL import Image
 
+import os
 import subprocess
+
+# Run the download script
+subprocess.call(['python', 'download_nltk_data.py'])
 
 
 pn.extension()
@@ -133,11 +134,11 @@ alert_panel.visible = False
 def refresh_dashboard(event):
     try:
         # Step 1: Run the web-scraping notebook
-        #subprocess.run(
-        #    ["jupyter", "nbconvert", "--to", "notebook", "--execute", 
-        #     "web-scraping.ipynb"],
-        #    check=True
-        #)
+        subprocess.run(
+            ["jupyter", "nbconvert", "--to", "notebook", "--execute", 
+             "web-scraping.ipynb"],
+            check=True
+        )
 
         # Step 2: Run the EDA notebook
         subprocess.run(
