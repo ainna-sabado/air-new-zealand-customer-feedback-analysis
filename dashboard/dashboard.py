@@ -90,7 +90,7 @@ def generate_star_html(rating):
     
     return stars
 
-html_content = "<div style='font-family: Arial, sans-serif; padding: 10px;'>"
+html_content = "<div style='font-family: Arial, sans-serif; padding: 5px;'>"
 html_content += "<h3>Overall Average Ratings by Category</h3>"
 
 for category, rating in top_5_ratings.items():
@@ -241,7 +241,7 @@ def plot_monthly_sentiment(sentiment_counts, chosen_year, total_reviews):
         title=f'Total Number of Reviews ({total_reviews}) by {xlabel} and Sentiment ({chosen_year})',  
         height=600,
         width=900,  
-        show_grid=True 
+        show_grid=True
     )
 
     return sentiment_plots
@@ -1114,13 +1114,13 @@ def show_home_page(event=None):
     main_area.clear()  
     
     grid = pn.GridSpec(sizing_mode='stretch_both')
-    grid[0, 2] = pn.Column(rating_display, overall_category_ratings)  
+    grid[0, 4] = pn.Column(rating_display, overall_category_ratings)  
     year_reviews, sentiment_counts, total_reviews = get_sentiment_analysis(reviews_df, chosen_year)
     sentiment_plots = plot_monthly_sentiment(sentiment_counts, chosen_year, total_reviews)
-    grid[0, 0:2] = pn.pane.HoloViews(sentiment_plots, sizing_mode='stretch_both', align='center')  
-    grid[1, 0] = pn.pane.HoloViews(plot_avg_ratings(year_reviews, chosen_year), sizing_mode='stretch_both', align='center')  
-    grid[1, 1] = pn.pane.Bokeh(plot_traveller_sentiments(year_reviews, chosen_year), sizing_mode='stretch_both', align='center')
-    grid[1, 2] = pn.pane.HoloViews(plot_seat_type_ratings(year_reviews, chosen_year), sizing_mode='stretch_both', align='center')
+    grid[0, 0:4] = pn.pane.HoloViews(sentiment_plots, sizing_mode='stretch_both', align='center')  
+    grid[1, 3:5] = pn.pane.HoloViews(plot_avg_ratings(year_reviews, chosen_year), sizing_mode='stretch_both', align='center')  
+    grid[1, 0:1] = pn.pane.Bokeh(plot_traveller_sentiments(year_reviews, chosen_year), sizing_mode='stretch_both', align='center')
+    grid[1, 1:3] = pn.pane.HoloViews(plot_seat_type_ratings(year_reviews, chosen_year), sizing_mode='stretch_both', align='center')
 
     main_area.append(grid)
 
