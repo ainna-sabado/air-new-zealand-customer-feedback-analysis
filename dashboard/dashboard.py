@@ -1200,7 +1200,7 @@ dashboard = pn.template.BootstrapTemplate(
     main=[alert_panel, main_area],
     header_background="black", 
     site="Air New Zealand",
-    logo="/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/air-nz.png",
+    logo="air-nz.png",
     theme=pn.template.DarkTheme,
     sidebar_width=250,
 )
@@ -1212,8 +1212,8 @@ def display_alert_panel(event):
 # Add the display alert function to the refresh button click event
 refresh_button.on_click(display_alert_panel)
 
-# Serve the Panel app
-dashboard.show()
+# Serve the Panel app on Heroku
+pn.serve(dashboard, port=5006, address='0.0.0.0')
 
 # Initialize with the default Home page
 set_current_page('home')
