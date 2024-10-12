@@ -17,9 +17,12 @@ from bokeh.palettes import Category20
 from bokeh.transform import cumsum
 
 # Natural Language Processing
+import nltk
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import stopwords
 from nltk.util import ngrams
+
+nltk.data.path.append('./nltk_data')
 
 # Additional imports for threading and timing
 import time
