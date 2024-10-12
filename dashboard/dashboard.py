@@ -34,7 +34,7 @@ hv.extension('bokeh')
 
 ############################ LOAD DATASETS ############################
 # Set the CSV file path and year for analysis
-csv_file = '/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/notebook/nz_reviews_with_routes.csv'
+csv_file = 'nz_reviews_with_routes.csv'
 
 # Load the dataset
 reviews_df = pd.read_csv(csv_file)
@@ -130,16 +130,16 @@ alert_panel.visible = False
 def refresh_dashboard(event):
     try:
         # Step 1: Run the web-scraping notebook
-        subprocess.run(
-            ["jupyter", "nbconvert", "--to", "notebook", "--execute", 
-             "/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/notebook/web-scraping.ipynb"],
-            check=True
-        )
+        #subprocess.run(
+        #    ["jupyter", "nbconvert", "--to", "notebook", "--execute", 
+        #     "web-scraping.ipynb"],
+        #    check=True
+        #)
 
         # Step 2: Run the EDA notebook
         subprocess.run(
             ["jupyter", "nbconvert", "--to", "notebook", "--execute", 
-             "/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/notebook/eda-customer-feedback.ipynb"],
+             "eda-customer-feedback.ipynb"],
             check=True
         )
 
@@ -399,7 +399,7 @@ lemmatizer = WordNetLemmatizer()
 excluded_terms = ["air_new_zealand", "flight", "auckland", "christchurch", "wellington", 
                   "new", "zealand", "air", "nz", "even_though", "via", "av", "sec", "could"]
 
-mask = np.array(Image.open('/Users/ainna/Documents/Coding Crusade with Ainna/air-new-zealand-customer-feedback-analysis/airplane-vector-36294843 copy.jpg'))
+mask = np.array(Image.open('airplane-vector-36294843 copy.jpg'))
 
 
 def preprocess_text(text):
@@ -1212,8 +1212,8 @@ def display_alert_panel(event):
 # Add the display alert function to the refresh button click event
 refresh_button.on_click(display_alert_panel)
 
-# Serve the Panel app on Heroku
-pn.serve(dashboard, port=5006, address='0.0.0.0')
+# Serve the Panel app
+dashboard.show()
 
 # Initialize with the default Home page
 set_current_page('home')
