@@ -23,7 +23,6 @@ from nltk.stem import WordNetLemmatizer
 from nltk.corpus import stopwords
 from nltk.util import ngrams
 
-# Set the NLTK data path to the folder in your project
 nltk.data.path.append(os.path.join(os.path.dirname(__file__), 'nltk_data'))
 
 
@@ -1219,7 +1218,7 @@ def display_alert_panel(event):
 refresh_button.on_click(display_alert_panel)
 
 # Serve the Panel app
-dashboard.show()
+dashboard.servable()
 
 # Initialize with the default Home page
 set_current_page('home')
