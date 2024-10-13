@@ -66,16 +66,14 @@ rating_html = """
 </div>
 """.format(average_rating=average_rating)
 
-rating_display = pn.pane.HTML(rating_html, width=300, height=100)
+rating_display = pn.pane.HTML(rating_html, width=300)
 
 # Rating categories
 rating_columns = ['seat_comfort', 'cabin_staff_service', 'food_&_beverages', 'ground_service', 
                   'wifi_&_connectivity', 'value_for_money', 'inflight_entertainment']
 
 average_ratings_by_category = np.ceil(reviews_df[rating_columns].mean())
-
 top_5_ratings = average_ratings_by_category.sort_values(ascending=False).head(5)
-
 top_5_ratings = top_5_ratings.sort_index()
 
 # Define star symbols
@@ -95,19 +93,80 @@ def generate_star_html(rating):
     
     return stars
 
-html_content = "<div style='font-family: Arial, sans-serif; padding: 5px;'>"
-html_content += "<h3>Overall Average Ratings by Category</h3>"
+# Generate HTML for category ratings in a table
+html_content = """
+<div style='font-family: Arial, sans-serif; padding: 10px;'>
+    <table style='width: 100%; border-collapse: collapse; background-color: white;'>
+        <thead>
+            <tr>
+                <th colspan="2" style='text-align: center; padding: 8px; border: 1px solid #ddd; color: black; font-size: 18px;'>
+                    Overall Average Ratings by Category
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+"""
 
 for category, rating in top_5_ratings.items():
     stars = generate_star_html(rating)
-    html_content += f"<div style='margin-bottom: 10px;'><strong>{category.replace('_', ' ').title()}:</strong> {stars} ({rating:.1f})</div>"
+    html_content += f"""
+            <tr>
+                <td style='padding: 3px; border: 1px solid #ddd; color: black;'><strong>{category.replace('_', ' ').title()}</strong></td>
+                <td style='padding: 3px; border: 1px solid #ddd; color: black;'>{stars}</td>
+            </tr>
+    """
 
-html_content += "</div>"
+html_content += """
+        </tbody>
+    </table>
+</div>
+"""
 
-overall_category_ratings = pn.pane.HTML(html_content, width=500)
+overall_category_ratings = pn.pane.HTML(html_content, width=300)
+
+# Calculate the percentage of recommendations
+total_recommendations = reviews_df['recommended'].count()
+recommended_count = reviews_df['recommended'].sum()  # True values are counted as 1
+not_recommended_count = total_recommendations - recommended_count
+
+# Calculate percentages
+if total_recommendations > 0:
+    thumbs_up_percentage = (recommended_count / total_recommendations) * 100
+    thumbs_down_percentage = (not_recommended_count / total_recommendations) * 100
+else:
+    thumbs_up_percentage = 0
+    thumbs_down_percentage = 0
+
+# Create HTML for thumbs up and thumbs down
+thumbs_html = f"""
+<div style="text-align: center; font-size: 20px; color: #333; background-color: #f8f9fa; border-radius: 8px; padding: 10px;">
+    <div>
+        <span style="font-size: 20px; color: green;">&#128077;</span> 
+        <strong>{thumbs_up_percentage:.1f}%</strong>
+        &nbsp; &nbsp;  <!-- Adds some space between thumbs -->
+        <span style="font-size: 20px; color: red;">&#128078;</span> 
+        <strong>{thumbs_down_percentage:.1f}%</strong>
+    </div>
+</div>
+"""
+
+thumbs_display = pn.pane.HTML(thumbs_html, width=300)
+
+# Create a combined container for all displays
+combined_html = f"""
+<div style='padding: 5px; background-color: #f8f9fa; border-radius: 8px; width: 300px;'>
+    {rating_display.object}
+    {overall_category_ratings.object}
+    {thumbs_display.object}
+</div>
+"""
+
+# Create the final pane for display
+final_display = pn.pane.HTML(combined_html, width=300)
+
 
 ############################ WIDGET FOR YEAR SELECTION ############################
-year_selector = pn.widgets.Select(name='Select Year', options=available_years, value='ALL', sizing_mode='fixed', width=200)
+year_selector = pn.widgets.Select(name='Select Year', options=available_years, value='ALL', sizing_mode='stretch_width')
 
 ############################ REFRESH DASHBOARD ############################
 
@@ -115,7 +174,7 @@ year_selector = pn.widgets.Select(name='Select Year', options=available_years, v
 text = "Are you sure you want to refresh? This will take 5-10 mins."
 
 # Create a Button in the dashboard
-refresh_button = pn.widgets.Button(name='Refresh Data', button_type='warning', button_style='outline', icon='refresh', sizing_mode='fixed', width=200)
+refresh_button = pn.widgets.Button(name='Refresh Data', button_type='warning', button_style='outline', icon='refresh', sizing_mode='stretch_width')
 
 # Create alert pane and buttons for confirmation
 alert_pane = pn.pane.Alert(text, alert_type='warning')
@@ -916,13 +975,13 @@ def result_page4(seat_rating_summary, chosen_year):
 
 ############################# WIDGETS & CALLBACK ###########################################
 # Create buttons for the sidebar navigation
-button_home = pn.widgets.Button(name="Home", button_type="light", icon='home', sizing_mode='fixed', width=200, height=30)
-button1 = pn.widgets.Button(name="Overall Sentiment Analysis", button_type="light", icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-line"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 19l16 0" /><path d="M4 15l4 -6l4 2l4 -5l4 4" /></svg>', sizing_mode='fixed', width=200, height=30)
-button2 = pn.widgets.Button(name="AVG Ratings by Route Type", button_type="light", sizing_mode='fixed', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-sankey"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 3v18h18" /><path d="M3 6h18" /><path d="M3 8c10 0 8 9 18 9" /></svg>', width=200, height=30)
-button3 = pn.widgets.Button(name="Sentiment by Traveler Type", button_type="light", sizing_mode='fixed', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-pie-3"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12l-6.5 5.5" /><path d="M12 3v9h9" /><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /></svg>', width=200, height=30)
-button4 = pn.widgets.Button(name="AVG Ratings by Seat Type", button_type="light", sizing_mode='fixed', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-bar"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M4 20h14" /></svg>', width=200, height=30)
-button5 = pn.widgets.Button(name="Wordcloud + Ngram", button_type="light", sizing_mode='fixed', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-language"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 5h7" /><path d="M9 3v2c0 4.418 -2.239 8 -5 8" /><path d="M5 9c0 2.144 2.952 3.908 6.7 4" /><path d="M12 20l4 -9l4 9" /><path d="M19.1 18h-6.2" /></svg>', width=200, height=30)
-button6 = pn.widgets.Button(name="Sentiment by Route", button_type="light", sizing_mode='fixed', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-plane-inflight"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 11.085h5a2 2 0 1 1 0 4h-15l-3 -6h3l2 2h3l-2 -7h3l4 7z" /><path d="M3 21h18" /></svg>', width=200, height=30)
+button_home = pn.widgets.Button(name="Home", button_type="light", icon='home', sizing_mode='stretch_width')
+button1 = pn.widgets.Button(name="Overall Sentiment Analysis", button_type="light", icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-line"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 19l16 0" /><path d="M4 15l4 -6l4 2l4 -5l4 4" /></svg>', sizing_mode='stretch_width')
+button2 = pn.widgets.Button(name="AVG Ratings by Route Type", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-sankey"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 3v18h18" /><path d="M3 6h18" /><path d="M3 8c10 0 8 9 18 9" /></svg>')
+button3 = pn.widgets.Button(name="Sentiment by Traveler Type", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-pie-3"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12l-6.5 5.5" /><path d="M12 3v9h9" /><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /></svg>')
+button4 = pn.widgets.Button(name="AVG Ratings by Seat Type", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-bar"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M4 20h14" /></svg>')
+button5 = pn.widgets.Button(name="Wordcloud + Ngram", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-language"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 5h7" /><path d="M9 3v2c0 4.418 -2.239 8 -5 8" /><path d="M5 9c0 2.144 2.952 3.908 6.7 4" /><path d="M12 20l4 -9l4 9" /><path d="M19.1 18h-6.2" /></svg>')
+button6 = pn.widgets.Button(name="Sentiment by Route", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-plane-inflight"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 11.085h5a2 2 0 1 1 0 4h-15l-3 -6h3l2 2h3l-2 -7h3l4 7z" /><path d="M3 21h18" /></svg>')
 
 main_area = pn.Column()
 
@@ -1119,7 +1178,7 @@ def show_home_page(event=None):
     main_area.clear()  
     
     grid = pn.GridSpec(sizing_mode='stretch_both')
-    grid[0, 4] = pn.Column(rating_display, overall_category_ratings)  
+    grid[0, 4] = pn.Column(final_display)  
     year_reviews, sentiment_counts, total_reviews = get_sentiment_analysis(reviews_df, chosen_year)
     sentiment_plots = plot_monthly_sentiment(sentiment_counts, chosen_year, total_reviews)
     grid[0, 0:4] = pn.pane.HoloViews(sentiment_plots, sizing_mode='stretch_both', align='center')  
@@ -1183,6 +1242,7 @@ year_selector.param.watch(update_on_year_change, 'value')
 
 
 #################### SIDEBAR LAYOUT ##########################
+
 sidebar = pn.Column(
     pn.pane.Markdown("## Menu"),
     year_selector,  
@@ -1194,21 +1254,23 @@ sidebar = pn.Column(
     button4,
     button5,
     button6,
-    styles={"width": "100%", "padding": "15px"}
+    styles={"width": "100%", "padding": "10px"}
 )
 
 ###################### APP LAYOUT ##############################
+
 
 dashboard = pn.template.BootstrapTemplate(
     title="Customer Feedback Analysis",
     sidebar=[sidebar],
     main=[alert_panel, main_area],
-    header_background="black", 
-    site="Air New Zealand",
+    header_background='black',  
+    site="<b>Air New Zealand</b>",
     logo="air-nz.png",
     theme=pn.template.DarkTheme,
-    sidebar_width=250,
+    sidebar_width=300,
 )
+
 
 # Callback to show the alert panel
 def display_alert_panel(event):
@@ -1218,7 +1280,7 @@ def display_alert_panel(event):
 refresh_button.on_click(display_alert_panel)
 
 # Serve the Panel app
-dashboard.servable()
+dashboard.show()
 
 # Initialize with the default Home page
 set_current_page('home')
