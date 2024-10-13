@@ -1259,7 +1259,6 @@ sidebar = pn.Column(
 
 ###################### APP LAYOUT ##############################
 
-
 dashboard = pn.template.BootstrapTemplate(
     title="Customer Feedback Analysis",
     sidebar=[sidebar],
@@ -1271,7 +1270,6 @@ dashboard = pn.template.BootstrapTemplate(
     sidebar_width=300,
 )
 
-
 # Callback to show the alert panel
 def display_alert_panel(event):
     alert_panel.visible = True  # Make the alert panel visible
@@ -1280,7 +1278,7 @@ def display_alert_panel(event):
 refresh_button.on_click(display_alert_panel)
 
 # Serve the Panel app
-dashboard.show()
+dashboard.servable()
 
 # Initialize with the default Home page
 set_current_page('home')
