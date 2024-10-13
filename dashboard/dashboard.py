@@ -1005,7 +1005,7 @@ def show_page1(event=None):
     button_analyze = pn.widgets.Button(name="Analyse", button_type="primary", button_style='outline', width=150, height=50)
     grid[0, 1:4] = pn.pane.HoloViews(sentiment_plots, align='center') 
     grid[0, 5] = button_analyze
-    analysis_output_pane = pn.pane.Markdown("", width=900, height=300) 
+    analysis_output_pane = pn.pane.Markdown("", sizing_mode='stretch_width') 
     grid[1, 1:4] = analysis_output_pane 
 
     def analyze_results1(event):
@@ -1024,9 +1024,9 @@ def show_page2(event=None):
 
     grid = pn.GridSpec()
     button_analyze = pn.widgets.Button(name="Analyse", button_type="primary", button_style='outline', width=150, height=50)
-    grid[0,1:4] = pn.pane.HoloViews(avg_ratings_plot)
+    grid[0,1:4] = pn.pane.HoloViews(avg_ratings_plot, align='center')
     grid[0, 5] = button_analyze
-    analysis_output_pane = pn.pane.Markdown("", width=900, height=300)
+    analysis_output_pane = pn.pane.Markdown("", sizing_mode='stretch_width')
     grid[1, 1:4] = analysis_output_pane  
 
     def analyze_results2(event):
@@ -1055,9 +1055,9 @@ def show_page3(attr=None, old=None, new=None):
     grid = pn.GridSpec()
     button_analyze = pn.widgets.Button(name="Analyse", button_type="primary", button_style='outline', width=150, height=50)
     
-    grid[0, 1:4] = pn.pane.Bokeh(plot_traveller_sentiments(year_reviews, chosen_year))
+    grid[0, 1:4] = pn.pane.Bokeh(plot_traveller_sentiments(year_reviews, chosen_year), align='center')
     grid[0, 5] = button_analyze
-    analysis_output_pane = pn.pane.Markdown("", width=900, height=300)
+    analysis_output_pane = pn.pane.Markdown("", sizing_mode='stretch_width')
     grid[1, 1:4] = analysis_output_pane  
 
     def analyze_results3(event):
@@ -1079,7 +1079,7 @@ def show_page4(event=None):
     button_analyze = pn.widgets.Button(name="Analyse", button_type="primary", button_style='outline', width=150, height=50)
     grid[0, 1:4] = pn.pane.HoloViews(plot_seat_type_ratings(year_reviews, chosen_year), height=600)
     grid[0, 5] = button_analyze
-    analysis_output_pane = pn.pane.Markdown("", width=900, height=300)
+    analysis_output_pane = pn.pane.Markdown("", sizing_mode='stretch_width')
     grid[1, 1:4] = analysis_output_pane 
 
     def analyze_results4(event):
