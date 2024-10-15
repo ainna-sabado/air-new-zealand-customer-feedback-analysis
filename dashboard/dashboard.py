@@ -1247,7 +1247,7 @@ def show_page7(event=None):
     main_area.clear()
 
     # Format column names and exclude specified columns
-    exclude_columns = ['Cleaned Review', 'Month']  
+    exclude_columns = ['Cleaned Review', 'Month', 'Vader Sentiment Numeric']  
     year_reviews = format_column_names(year_reviews)
 
     # Initialize a GridSpec layout
