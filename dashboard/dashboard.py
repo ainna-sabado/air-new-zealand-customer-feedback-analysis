@@ -32,6 +32,7 @@ import threading
 from PIL import Image
 
 import subprocess
+import io
 
 
 pn.extension()
@@ -171,7 +172,7 @@ year_selector = pn.widgets.Select(name='Select Year', options=available_years, v
 ############################ REFRESH DASHBOARD ############################
 
 # Alert message
-text = "Are you sure you want to refresh? This will take 5-10 mins."
+text = "Are you sure you want to refresh? This process will take 10 to 20 minutes to load. Please note that it involves downloading data from SkyTrax (airlinequality.com)."
 
 # Create a Button in the dashboard
 refresh_button = pn.widgets.Button(name='Refresh Data', button_type='warning', button_style='outline', icon='refresh', sizing_mode='stretch_width')
@@ -193,12 +194,12 @@ alert_panel.visible = False
 # Function to refresh the dashboard
 def refresh_dashboard(event):
     try:
-        # Step 1: Run the web-scraping notebook
-        #subprocess.run(
-        #    ["jupyter", "nbconvert", "--to", "notebook", "--execute", 
-        #     "web-scraping.ipynb"],
-        #    check=True
-        #)
+        #Step 1: Run the web-scraping notebook
+        subprocess.run(
+            ["jupyter", "nbconvert", "--to", "notebook", "--execute", 
+             "web-scraping.ipynb"],
+            check=True
+        )
 
         # Step 2: Run the EDA notebook
         subprocess.run(
@@ -681,8 +682,68 @@ def sentiment_by_route(domestic_data, international_data, domestic_colors, inter
     
     return route_sentiments
 
+def format_column_names(df):
+    """Format column names by removing underscores and capitalizing each word."""
+    df.columns = [col.replace('_', ' ').title() for col in df.columns]
+    return df
+
+def apply_filters(dataset, year_reviews, filter_widgets):
+    """Apply filters to the dataset based on filter widgets' values."""
+    filtered_reviews = year_reviews.copy()
+
+    # Apply filters from the widgets
+    for col, widget in filter_widgets.items():
+        if isinstance(widget, pn.widgets.MultiChoice):
+            selected = widget.value
+            if selected:
+                filtered_reviews = filtered_reviews[filtered_reviews[col].isin(selected)]
+        elif isinstance(widget, pn.widgets.RangeSlider):
+            selected_range = widget.value
+            if selected_range:
+                filtered_reviews = filtered_reviews[
+                    (filtered_reviews[col] >= selected_range[0]) & 
+                    (filtered_reviews[col] <= selected_range[1])
+                ]
+
+    # Update the dataset widget with the filtered data
+    dataset.object = filtered_reviews  # .object for updating DataFrame widget content
+
+def create_filter_widgets(year_reviews, exclude_columns, dataset):
+    """Create filter widgets for the DataFrame columns."""
+    filter_widgets = {}
+
+    for col in year_reviews.columns:
+        if col in exclude_columns:
+            continue  # Skip excluded columns
+
+        widget = None
+        if year_reviews[col].dtype == 'object':
+            unique_values = year_reviews[col].dropna().unique().tolist()
+            widget = pn.widgets.MultiChoice(name=f'{col}', options=unique_values, sizing_mode='stretch_width')
+        elif year_reviews[col].dtype in ['int64', 'float64', 'int32']:
+            widget = pn.widgets.RangeSlider(
+                name=f'{col}', start=year_reviews[col].min(), end=year_reviews[col].max(),
+                step=1, sizing_mode='stretch_width'
+            )
+
+        if widget is not None:
+            filter_widgets[col] = widget
+            # Watch for changes to apply filters
+            widget.param.watch(lambda event: apply_filters(dataset, year_reviews, filter_widgets), 'value')
+
+    return filter_widgets
 
 
+def get_filtered_csv(dataset):
+    """Create a CSV file from the filtered dataset."""
+    filtered_reviews = dataset.object  # Use .object to access the filtered DataFrame
+    excluded_columns = ['Cleaned Review', 'Month']  # Replace with your actual excluded columns
+    filtered_reviews_to_save = filtered_reviews.drop(columns=excluded_columns, errors='ignore')
+
+    csv_io = io.StringIO()
+    filtered_reviews_to_save.to_csv(csv_io, index=False)
+    csv_io.seek(0)
+    return csv_io
 
 ############################# INTERPRETATION OF RESULTS + RECOMMENDATIONS ###########################################
 def result_page1(chosen_year, total_reviews, sentiment_data, is_yearly=True):
@@ -982,6 +1043,7 @@ button3 = pn.widgets.Button(name="Sentiment by Traveler Type", button_type="ligh
 button4 = pn.widgets.Button(name="AVG Ratings by Seat Type", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-bar"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M4 20h14" /></svg>')
 button5 = pn.widgets.Button(name="Wordcloud + Ngram", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-language"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 5h7" /><path d="M9 3v2c0 4.418 -2.239 8 -5 8" /><path d="M5 9c0 2.144 2.952 3.908 6.7 4" /><path d="M12 20l4 -9l4 9" /><path d="M19.1 18h-6.2" /></svg>')
 button6 = pn.widgets.Button(name="Sentiment by Route", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-plane-inflight"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 11.085h5a2 2 0 1 1 0 4h-15l-3 -6h3l2 2h3l-2 -7h3l4 7z" /><path d="M3 21h18" /></svg>')
+button7 = pn.widgets.Button(name="View and Save Dataset", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-device-floppy"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2" /><path d="M12 14m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M14 4l0 4l-6 0l0 -4" /></svg>')
 
 main_area = pn.Column()
 
@@ -1172,6 +1234,53 @@ def show_page6(event=None):
     # Add the grid to the main area
     main_area.append(grid)
 
+def show_page7(event=None):
+    """Display the dataset and filter widgets in a grid layout."""
+    # Assuming 'reviews_df' is your complete dataset, and 'Year' is one of the columns in the dataset
+    year_reviews = reviews_df.copy()
+
+    print(year_reviews.columns)
+    print(year_reviews.dtypes)
+
+
+    # Clear the main area (assuming main_area is pre-defined somewhere in your actual code)
+    main_area.clear()
+
+    # Format column names and exclude specified columns
+    exclude_columns = ['Cleaned Review', 'Month']  
+    year_reviews = format_column_names(year_reviews)
+
+    # Initialize a GridSpec layout
+    grid = pn.GridSpec(sizing_mode='stretch_both')
+
+    # Create a dynamic DataFrame widget to display the dataset
+    dataset = pn.pane.DataFrame(year_reviews.drop(columns=exclude_columns, errors='ignore'), sizing_mode='stretch_both')
+
+    # Create filter widgets
+    filter_widgets = create_filter_widgets(year_reviews, exclude_columns, dataset)
+
+    # Add the dataset to the grid
+    grid[0, 0:4] = dataset
+
+    # Add filter widgets to the right side of the grid
+    filter_column = pn.Column(*filter_widgets.values(), sizing_mode='stretch_both')
+    grid[0, 4:5] = filter_column
+
+    # Create a FileDownload button to download the filtered dataset
+    download_button = pn.widgets.FileDownload(
+        filename='filtered_reviews.csv',
+        callback=lambda: get_filtered_csv(dataset),
+        button_type='success',
+        sizing_mode='stretch_width',
+        label = 'Download'
+    )
+
+    # Add the download button below the filters
+    filter_column.append(download_button)
+
+    # Append the grid to the main area
+    main_area.append(grid)
+
 
 def show_home_page(event=None):
     chosen_year = year_selector.value  
@@ -1198,7 +1307,7 @@ button3.on_click(lambda event: set_current_page('page3'))
 button4.on_click(lambda event: set_current_page('page4'))
 button5.on_click(lambda event: set_current_page('page5'))
 button6.on_click(lambda event: set_current_page('page6'))
-
+button7.on_click(lambda event: set_current_page('page7'))
 
 # Set the current page and update content based on year and active page
 def set_current_page(page):
@@ -1218,6 +1327,8 @@ def set_current_page(page):
         show_page5()
     elif page == 'page6':
         show_page6()
+    elif page == 'page7':
+        show_page7()
 
 
 # Automatically update the page content when the year selector is changed
@@ -1236,6 +1347,8 @@ def update_on_year_change(event):
         show_page5()
     elif current_page == 'page6':
         show_page6()
+    elif current_page == 'page7':
+        show_page7()
 
 
 year_selector.param.watch(update_on_year_change, 'value')
@@ -1254,6 +1367,7 @@ sidebar = pn.Column(
     button4,
     button5,
     button6,
+    button7,
     styles={"width": "100%", "padding": "10px"}
 )
 
