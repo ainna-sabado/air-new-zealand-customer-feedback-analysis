@@ -40,7 +40,7 @@ hv.extension('bokeh')
 
 ############################ LOAD DATASETS ############################
 # Set the CSV file path and year for analysis
-csv_file = 'nz_reviews_with_routes.csv'
+csv_file = './dataset/nz_reviews_with_routes.csv'
 
 # Load the dataset
 reviews_df = pd.read_csv(csv_file)
@@ -55,7 +55,7 @@ available_years = [str(year) for year in sorted(reviews_df['year'].unique())] + 
 
 
 ############################ OVERALL RESULTS ############################
-#all_reviews = "air_nz_cleaned_data.csv"
+#all_reviews = "./dataset/air_nz_cleaned_data.csv"
 #all_reviews = pd.read_csv(all_reviews)
 
 # Overall average rating
@@ -197,14 +197,14 @@ def refresh_dashboard(event):
         #Step 1: Run the web-scraping notebook
         subprocess.run(
             ["jupyter", "nbconvert", "--to", "notebook", "--execute", 
-             "web-scraping.ipynb"],
+             "./notebook/web-scraping.ipynb"],
             check=True
         )
 
         # Step 2: Run the EDA notebook
         subprocess.run(
             ["jupyter", "nbconvert", "--to", "notebook", "--execute", 
-             "eda-customer-feedback.ipynb"],
+             "./notebook/eda-customer-feedback.ipynb"],
             check=True
         )
 
@@ -441,14 +441,17 @@ def plot_traveller_sentiments(year_reviews, chosen_year):
 
 ### AVERAGE RATINGS PER SEAT TYPE
 def plot_seat_type_ratings(year_reviews, chosen_year):
+    # Rename 'seat_type' to 'Seat Type' directly in the DataFrame
     seat_rating_summary = year_reviews.groupby('seat_type')['rating'].agg(['mean', 'median', 'count']).reset_index()
+    seat_rating_summary = seat_rating_summary.rename(columns={'seat_type': 'Seat Type'})
     seat_rating_summary = seat_rating_summary.sort_values(by='mean', ascending=False)
 
-    bar_plot = hv.Bars(seat_rating_summary, kdims=['seat_type'], vdims=['mean']).opts(
+    # Use the renamed 'Seat Type' for kdims and color mapping
+    bar_plot = hv.Bars(seat_rating_summary, kdims=['Seat Type'], vdims=['mean']).opts(
         title=f'Average Ratings by Seat Type ({chosen_year})',
         xlabel='Seat Type',
         ylabel='Average Rating',
-        color='seat_type',
+        color='Seat Type',  # Use renamed column here for color mapping
         cmap='coolwarm',
         tools=['hover'],
         width=600,
@@ -457,6 +460,8 @@ def plot_seat_type_ratings(year_reviews, chosen_year):
 
     return bar_plot
 
+
+
 ### N-GRAM AND WORDCLOUD SENTIMENT ANALYSIS
 stop_words = set(stopwords.words('english'))
 lemmatizer = WordNetLemmatizer()
@@ -464,7 +469,7 @@ lemmatizer = WordNetLemmatizer()
 excluded_terms = ["air_new_zealand", "flight", "auckland", "christchurch", "wellington", 
                   "new", "zealand", "air", "nz", "even_though", "via", "av", "sec", "could"]
 
-mask = np.array(Image.open('airplane-vector-36294843 copy.jpg'))
+mask = np.array(Image.open('./static/airplane-vector-36294843 copy.jpg'))
 
 
 def preprocess_text(text):
@@ -682,10 +687,7 @@ def sentiment_by_route(domestic_data, international_data, domestic_colors, inter
     
     return route_sentiments
 
-def format_column_names(df):
-    """Format column names by removing underscores and capitalizing each word."""
-    df.columns = [col.replace('_', ' ').title() for col in df.columns]
-    return df
+
 
 def apply_filters(dataset, year_reviews, filter_widgets):
     """Apply filters to the dataset based on filter widgets' values."""
@@ -1239,12 +1241,13 @@ def show_page7(event=None):
     # Assuming 'reviews_df' is your complete dataset, and 'Year' is one of the columns in the dataset
     year_reviews = reviews_df.copy()
 
-    print(year_reviews.columns)
-    print(year_reviews.dtypes)
-
-
     # Clear the main area (assuming main_area is pre-defined somewhere in your actual code)
     main_area.clear()
+
+    def format_column_names(df):
+        """Format column names by removing underscores and capitalizing each word."""
+        df.columns = [col.replace('_', ' ').title() for col in df.columns]
+        return df
 
     # Format column names and exclude specified columns
     exclude_columns = ['Cleaned Review', 'Month', 'Vader Sentiment Numeric']  
@@ -1263,7 +1266,7 @@ def show_page7(event=None):
     grid[0, 0:4] = dataset
 
     # Add filter widgets to the right side of the grid
-    filter_column = pn.Column(*filter_widgets.values(), sizing_mode='stretch_both')
+    filter_column = pn.Column(*filter_widgets.values(), sizing_mode='stretch_width')
     grid[0, 4:5] = filter_column
 
     # Create a FileDownload button to download the filtered dataset
@@ -1379,7 +1382,7 @@ dashboard = pn.template.BootstrapTemplate(
     main=[alert_panel, main_area],
     header_background='black',  
     site="<b>Air New Zealand</b>",
-    logo="air-nz.png",
+    logo="./static/air-nz.png",
     theme=pn.template.DarkTheme,
     sidebar_width=300,
 )
