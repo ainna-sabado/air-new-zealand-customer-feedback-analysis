@@ -45,6 +45,14 @@ csv_file = './dataset/nz_reviews_with_routes.csv'
 # Load the dataset
 reviews_df = pd.read_csv(csv_file)
 
+# Identify the categorical columns
+categorical_columns = reviews_df.select_dtypes(include=['object']).columns
+
+# Strip leading and trailing spaces from all categorical columns
+reviews_df[categorical_columns] = reviews_df[categorical_columns].apply(lambda x: x.str.strip())
+
+reviews_df[categorical_columns] = reviews_df[categorical_columns].fillna("Not informed")
+
 # Convert date column to datetime and extract the year
 reviews_df['date'] = pd.to_datetime(reviews_df['date'], format='%Y-%m-%d')
 reviews_df['year'] = reviews_df['date'].dt.year
@@ -58,8 +66,10 @@ available_years = [str(year) for year in sorted(reviews_df['year'].unique())] + 
 #all_reviews = "./dataset/air_nz_cleaned_data.csv"
 #all_reviews = pd.read_csv(all_reviews)
 
+valid_reviews_df = reviews_df.where(reviews_df['rating'] != -1)  # Replace -1 with NaN for proper handling
+
 # Overall average rating
-average_rating = reviews_df['rating'].mean()
+average_rating = valid_reviews_df['rating'].mean()
 
 rating_html = """
 <div style="text-align: center; font-size: 24px; color: #333; background-color: #f8f9fa; border-radius: 8px; padding: 10px;">
@@ -73,9 +83,16 @@ rating_display = pn.pane.HTML(rating_html, width=300)
 rating_columns = ['seat_comfort', 'cabin_staff_service', 'food_&_beverages', 'ground_service', 
                   'wifi_&_connectivity', 'value_for_money', 'inflight_entertainment']
 
-average_ratings_by_category = np.ceil(reviews_df[rating_columns].mean())
-top_5_ratings = average_ratings_by_category.sort_values(ascending=False).head(5)
-top_5_ratings = top_5_ratings.sort_index()
+# Filter out -1 values from the ratings
+filtered_reviews = reviews_df[rating_columns].where(reviews_df[rating_columns] != -1)
+
+average_ratings = filtered_reviews.mean().round(1)
+sorted_ratings = average_ratings.sort_values(ascending=False)
+top_5_ratings = sorted_ratings.head(5)
+
+print(sorted_ratings)
+print(top_5_ratings)
+
 
 # Define star symbols
 def generate_star_html(rating):
@@ -319,7 +336,13 @@ def plot_avg_ratings(year_reviews, chosen_year):
         'wifi_&_connectivity'
     ]
     
+    # Replace -1 or other invalid values with NaN
+    year_reviews[rating_columns] = year_reviews[rating_columns].where(year_reviews[rating_columns] != -1, np.nan)
+    
+    # Group by 'is_domestic' and calculate the mean of the valid ratings
     average_ratings = year_reviews.groupby('is_domestic')[rating_columns].mean().reset_index()
+    
+    # Melt the data to a long format for easier plotting
     average_ratings_melted = average_ratings.melt(
         id_vars='is_domestic', 
         value_vars=rating_columns, 
@@ -327,31 +350,37 @@ def plot_avg_ratings(year_reviews, chosen_year):
         value_name='average_rating'
     )
     
+    # Map True/False to 'Domestic'/'International'
     average_ratings_melted['Route Type'] = average_ratings_melted['is_domestic'].map({True: 'Domestic', False: 'International'})
     
+    # Format the category names for display
     average_ratings_melted['category'] = (
         average_ratings_melted['category']
         .str.replace('_', ' ')  
         .str.title()  
     )
     
-    # Sort by average_rating only, highest to lowest
+    # Sort by average_rating from highest to lowest
     average_ratings_melted = average_ratings_melted.sort_values(by='average_rating', ascending=False)
 
+    # Color mapping for the bar plot
     color_mapping = {'Domestic': '#1f77b4', 'International': '#ff7f0e'}
     
+    # Set the category order for consistent plotting
     average_ratings_melted['category'] = pd.Categorical(
         average_ratings_melted['category'], 
         categories=[col.replace('_', ' ').title() for col in rating_columns], 
         ordered=True
     )
     
+    # Create the bar plot
     bars = hv.Bars(
         average_ratings_melted, 
         kdims=['category'], 
         vdims=['average_rating', 'Route Type']
     )
     
+    # Configure plot options
     bars.opts(
         ylabel='Average Rating', 
         xlabel='Category',  
@@ -375,6 +404,7 @@ def plot_avg_ratings(year_reviews, chosen_year):
     )
 
     return bars
+
 
 
 
@@ -739,7 +769,7 @@ def create_filter_widgets(year_reviews, exclude_columns, dataset):
 def get_filtered_csv(dataset):
     """Create a CSV file from the filtered dataset."""
     filtered_reviews = dataset.object  # Use .object to access the filtered DataFrame
-    excluded_columns = ['Cleaned Review', 'Month']  # Replace with your actual excluded columns
+    excluded_columns = ['Cleaned Review', 'Month']  
     filtered_reviews_to_save = filtered_reviews.drop(columns=excluded_columns, errors='ignore')
 
     csv_io = io.StringIO()
@@ -1049,7 +1079,7 @@ button7 = pn.widgets.Button(name="View and Save Dataset", button_type="light", s
 
 main_area = pn.Column()
 
-def typewriter_effect(text, pane, delay=0.05):
+def typewriter_effect(text, pane, delay=0.01):
     """
     A function that updates a Markdown pane to simulate a typewriter effect.
     """
@@ -1389,7 +1419,7 @@ dashboard = pn.template.BootstrapTemplate(
 
 # Callback to show the alert panel
 def display_alert_panel(event):
-    alert_panel.visible = True  # Make the alert panel visible
+    alert_panel.visible = True  
 
 # Add the display alert function to the refresh button click event
 refresh_button.on_click(display_alert_panel)
