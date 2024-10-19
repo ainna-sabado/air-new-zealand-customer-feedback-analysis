@@ -66,7 +66,7 @@ available_years = [str(year) for year in sorted(reviews_df['year'].unique())] + 
 #all_reviews = "./dataset/air_nz_cleaned_data.csv"
 #all_reviews = pd.read_csv(all_reviews)
 
-valid_reviews_df = reviews_df.where(reviews_df['rating'] != -1)  # Replace -1 with NaN for proper handling
+valid_reviews_df = reviews_df.where(reviews_df['rating'] != -1)  
 
 # Overall average rating
 average_rating = valid_reviews_df['rating'].mean()
@@ -79,11 +79,9 @@ rating_html = """
 
 rating_display = pn.pane.HTML(rating_html, width=300)
 
-# Rating categories
 rating_columns = ['seat_comfort', 'cabin_staff_service', 'food_&_beverages', 'ground_service', 
                   'wifi_&_connectivity', 'value_for_money', 'inflight_entertainment']
 
-# Filter out -1 values from the ratings
 filtered_reviews = reviews_df[rating_columns].where(reviews_df[rating_columns] != -1)
 
 average_ratings = filtered_reviews.mean().round(1)
@@ -92,7 +90,6 @@ top_5_ratings = sorted_ratings.head(5)
 
 print(sorted_ratings)
 print(top_5_ratings)
-
 
 # Define star symbols
 def generate_star_html(rating):
@@ -144,10 +141,9 @@ overall_category_ratings = pn.pane.HTML(html_content, width=300)
 
 # Calculate the percentage of recommendations
 total_recommendations = reviews_df['recommended'].count()
-recommended_count = reviews_df['recommended'].sum()  # True values are counted as 1
+recommended_count = reviews_df['recommended'].sum() 
 not_recommended_count = total_recommendations - recommended_count
 
-# Calculate percentages
 if total_recommendations > 0:
     thumbs_up_percentage = (recommended_count / total_recommendations) * 100
     thumbs_down_percentage = (not_recommended_count / total_recommendations) * 100
@@ -179,7 +175,6 @@ combined_html = f"""
 </div>
 """
 
-# Create the final pane for display
 final_display = pn.pane.HTML(combined_html, width=300)
 
 
@@ -187,28 +182,16 @@ final_display = pn.pane.HTML(combined_html, width=300)
 year_selector = pn.widgets.Select(name='Select Year', options=available_years, value='ALL', sizing_mode='stretch_width')
 
 ############################ REFRESH DASHBOARD ############################
+text = "Are you sure you want to refresh? This process will take 10 to 20 minutes to load. Please note that it involves downloading data from SkyTrax (https://www.airlinequality.com/airline-reviews/air-new-zealand/)."
 
-# Alert message
-text = "Are you sure you want to refresh? This process will take 10 to 20 minutes to load. Please note that it involves downloading data from SkyTrax (airlinequality.com)."
-
-# Create a Button in the dashboard
 refresh_button = pn.widgets.Button(name='Refresh Data', button_type='warning', button_style='outline', icon='refresh', sizing_mode='stretch_width')
-
-# Create alert pane and buttons for confirmation
 alert_pane = pn.pane.Alert(text, alert_type='warning')
 confirm_button = pn.widgets.Button(name='Yes', button_type='success')
 cancel_button = pn.widgets.Button(name='No', button_type='danger')
-
-# Create a row to hold the buttons
 buttons_row = pn.Row(confirm_button, cancel_button, align='center')
-
-# Create a column to hold the alert and buttons
 alert_panel = pn.Column(alert_pane, buttons_row)
-
-# Set the alert panel to be hidden initially
 alert_panel.visible = False
 
-# Function to refresh the dashboard
 def refresh_dashboard(event):
     try:
         #Step 1: Run the web-scraping notebook
@@ -225,22 +208,18 @@ def refresh_dashboard(event):
             check=True
         )
 
-        # Step 3: Temporarily change the button label to indicate refresh
         refresh_button.name = "Refreshing..."
         
-        # Step 4: Reload the dataset
         global reviews_df
-        reviews_df = pd.read_csv(csv_file)  # Reload the data after processing
+        reviews_df = pd.read_csv(csv_file)  
 
-        # Convert date column to datetime and extract the year
         reviews_df['date'] = pd.to_datetime(reviews_df['date'], format='%Y-%m-%d')
         reviews_df['year'] = reviews_df['date'].dt.year
         reviews_df['month'] = reviews_df['date'].dt.strftime('%B')
 
-        # Available years for dropdown
         available_years = [str(year) for year in sorted(reviews_df['year'].unique())] + ['ALL']
  
-        time.sleep(1)  # Simulate a refresh action
+        time.sleep(1) 
         refresh_button.name = "Refresh Data"  
         
         show_home_page()  
@@ -252,19 +231,17 @@ def refresh_dashboard(event):
 def show_alert(event):
     alert_panel.visible = True  # Show the alert panel
 
-# Attach the show_alert function to the refresh_button's click event
 refresh_button.on_click(show_alert)
 
 # Callback for confirmation button
 def confirm_refresh(event):
-    refresh_dashboard(event)  # Refresh the dashboard
-    alert_panel.visible = False  # Hide the alert panel after confirmation
+    refresh_dashboard(event) 
+    alert_panel.visible = False  
 
 # Callback for cancel button
 def cancel_refresh(event):
-    alert_panel.visible = False  # Hide the alert panel without doing anything
+    alert_panel.visible = False  
 
-# Attach callbacks to the buttons
 confirm_button.on_click(confirm_refresh)
 cancel_button.on_click(cancel_refresh)
 
@@ -303,7 +280,7 @@ def plot_monthly_sentiment(sentiment_counts, chosen_year, total_reviews):
     sentiment_plots = hv.NdOverlay({
         sentiment: hv.Curve(
             sentiment_counts_melted[sentiment_counts_melted['Sentiment'] == sentiment], 
-            kdims=[time_column],  # Use time_column for kdims
+            kdims=[time_column],  
             vdims=['Count'],
             label=sentiment
         ).opts(
@@ -336,13 +313,10 @@ def plot_avg_ratings(year_reviews, chosen_year):
         'wifi_&_connectivity'
     ]
     
-    # Replace -1 or other invalid values with NaN
     year_reviews[rating_columns] = year_reviews[rating_columns].where(year_reviews[rating_columns] != -1, np.nan)
     
-    # Group by 'is_domestic' and calculate the mean of the valid ratings
     average_ratings = year_reviews.groupby('is_domestic')[rating_columns].mean().reset_index()
     
-    # Melt the data to a long format for easier plotting
     average_ratings_melted = average_ratings.melt(
         id_vars='is_domestic', 
         value_vars=rating_columns, 
@@ -350,37 +324,30 @@ def plot_avg_ratings(year_reviews, chosen_year):
         value_name='average_rating'
     )
     
-    # Map True/False to 'Domestic'/'International'
     average_ratings_melted['Route Type'] = average_ratings_melted['is_domestic'].map({True: 'Domestic', False: 'International'})
     
-    # Format the category names for display
     average_ratings_melted['category'] = (
         average_ratings_melted['category']
         .str.replace('_', ' ')  
         .str.title()  
     )
     
-    # Sort by average_rating from highest to lowest
     average_ratings_melted = average_ratings_melted.sort_values(by='average_rating', ascending=False)
 
-    # Color mapping for the bar plot
     color_mapping = {'Domestic': '#1f77b4', 'International': '#ff7f0e'}
     
-    # Set the category order for consistent plotting
     average_ratings_melted['category'] = pd.Categorical(
         average_ratings_melted['category'], 
         categories=[col.replace('_', ' ').title() for col in rating_columns], 
         ordered=True
     )
     
-    # Create the bar plot
     bars = hv.Bars(
         average_ratings_melted, 
         kdims=['category'], 
         vdims=['average_rating', 'Route Type']
     )
     
-    # Configure plot options
     bars.opts(
         ylabel='Average Rating', 
         xlabel='Category',  
@@ -406,14 +373,8 @@ def plot_avg_ratings(year_reviews, chosen_year):
     return bars
 
 
-
-
 ### SENTIMENT DISTRIBUTION BY TRAVELER TYPE
 def plot_traveller_sentiments(year_reviews, chosen_year):
-    """
-    Generate a pie chart for sentiment distribution by type of traveler using Bokeh.
-    """
-
     sentiment_distribution = year_reviews.groupby(['type_of_traveller', 'vader_sentiment']).size().unstack(fill_value=0)
     traveller_types = sentiment_distribution.index.tolist()
     current_type = traveller_types[0]
@@ -476,12 +437,11 @@ def plot_seat_type_ratings(year_reviews, chosen_year):
     seat_rating_summary = seat_rating_summary.rename(columns={'seat_type': 'Seat Type'})
     seat_rating_summary = seat_rating_summary.sort_values(by='mean', ascending=False)
 
-    # Use the renamed 'Seat Type' for kdims and color mapping
     bar_plot = hv.Bars(seat_rating_summary, kdims=['Seat Type'], vdims=['mean']).opts(
         title=f'Average Ratings by Seat Type ({chosen_year})',
         xlabel='Seat Type',
         ylabel='Average Rating',
-        color='Seat Type',  # Use renamed column here for color mapping
+        color='Seat Type', 
         cmap='coolwarm',
         tools=['hover'],
         width=600,
@@ -566,15 +526,6 @@ def plot_ngrams(ngram_freq, title, ax):
     ax.set_xlabel('Frequency')
 
 def plot_reviews(positive_ngrams, negative_ngrams, neutral_ngrams, mask=None):
-    """
-    Plots the n-grams and word clouds for positive, negative, and neutral reviews.
-    
-    Parameters:
-    - positive_ngrams: List of tuples (n-gram, frequency) for positive reviews
-    - negative_ngrams: List of tuples (n-gram, frequency) for negative reviews
-    - neutral_ngrams: List of tuples (n-gram, frequency) for neutral reviews
-    - mask: (Optional) Mask for the word cloud shape
-    """
     if positive_ngrams:
         fig, axes = plt.subplots(1, 2, figsize=(20, 8))
         plot_wordcloud(positive_ngrams, 'Positive Reviews', mask, axes[0])
@@ -595,12 +546,6 @@ def plot_reviews(positive_ngrams, negative_ngrams, neutral_ngrams, mask=None):
 
 
 def get_color(sentiment_score):
-    """
-    Returns a color based on the sentiment score.
-    Positive sentiment -> Green
-    Negative sentiment -> Red
-    Neutral sentiment -> Gray
-    """
     if sentiment_score > 0.5:
         return "green"
     elif sentiment_score < 0:
@@ -630,11 +575,9 @@ def sentiment_by_route(domestic_data, international_data, domestic_colors, inter
         .reset_index()
     )
 
-    # Merge comments back to sentiment data to ensure correct alignment
     domestic_mean_sentiment_with_comments = domestic_data.merge(domestic_comments, on='route', how='left')
     international_mean_sentiment_with_comments = international_data.merge(international_comments, on='route', how='left')
 
-    # Domestic Routes Plot
     if not domestic_mean_sentiment_with_comments.empty:
         domestic_source = ColumnDataSource(data={
             'route': domestic_mean_sentiment_with_comments['route'],
@@ -660,7 +603,6 @@ def sentiment_by_route(domestic_data, international_data, domestic_colors, inter
             source=domestic_source
         )
 
-        # Add HoverTool for domestic routes
         domestic_hover = HoverTool()
         domestic_hover.tooltips = [("Route", "@route"), ("Sentiment Score", "@sentiment"), ("Comments", "@comments")]
         domestic_fig.add_tools(domestic_hover)
@@ -670,13 +612,12 @@ def sentiment_by_route(domestic_data, international_data, domestic_colors, inter
     else:
         domestic_fig = figure(title="No Domestic Routes Data Available")
 
-    # International Routes Plot
     if not international_mean_sentiment_with_comments.empty:
         international_source = ColumnDataSource(data={
             'route': international_mean_sentiment_with_comments['route'],
             'sentiment': international_mean_sentiment_with_comments['vader_sentiment_numeric'],
             'color': international_colors,
-            'comments': international_mean_sentiment_with_comments['header']  # Use the correct comment column
+            'comments': international_mean_sentiment_with_comments['header']
         })
 
         international_fig = figure(
@@ -696,7 +637,6 @@ def sentiment_by_route(domestic_data, international_data, domestic_colors, inter
             source=international_source
         )
 
-        # Add HoverTool for international routes
         international_hover = HoverTool()
         international_hover.tooltips = [("Route", "@route"), ("Sentiment Score", "@sentiment"), ("Comments", "@comments")]
         international_fig.add_tools(international_hover)
@@ -706,13 +646,8 @@ def sentiment_by_route(domestic_data, international_data, domestic_colors, inter
     else:
         international_fig = figure(title="No International Routes Data Available")
 
-    # Combine Domestic and International Plots in a Grid
     combined_grid = gridplot([[domestic_fig, international_fig]])
-
-    # Create a title above the plots
     title_div = Div(text=f"<h2>Routes with Best and Worst Customer Experience ({chosen_year})</h2>", width=800)
-
-    # Combine the title and the grid in a column layout
     route_sentiments = column(title_div, combined_grid)
     
     return route_sentiments
@@ -720,10 +655,8 @@ def sentiment_by_route(domestic_data, international_data, domestic_colors, inter
 
 
 def apply_filters(dataset, year_reviews, filter_widgets):
-    """Apply filters to the dataset based on filter widgets' values."""
     filtered_reviews = year_reviews.copy()
 
-    # Apply filters from the widgets
     for col, widget in filter_widgets.items():
         if isinstance(widget, pn.widgets.MultiChoice):
             selected = widget.value
@@ -737,8 +670,7 @@ def apply_filters(dataset, year_reviews, filter_widgets):
                     (filtered_reviews[col] <= selected_range[1])
                 ]
 
-    # Update the dataset widget with the filtered data
-    dataset.object = filtered_reviews  # .object for updating DataFrame widget content
+    dataset.object = filtered_reviews 
 
 def create_filter_widgets(year_reviews, exclude_columns, dataset):
     """Create filter widgets for the DataFrame columns."""
@@ -760,7 +692,6 @@ def create_filter_widgets(year_reviews, exclude_columns, dataset):
 
         if widget is not None:
             filter_widgets[col] = widget
-            # Watch for changes to apply filters
             widget.param.watch(lambda event: apply_filters(dataset, year_reviews, filter_widgets), 'value')
 
     return filter_widgets
@@ -768,7 +699,7 @@ def create_filter_widgets(year_reviews, exclude_columns, dataset):
 
 def get_filtered_csv(dataset):
     """Create a CSV file from the filtered dataset."""
-    filtered_reviews = dataset.object  # Use .object to access the filtered DataFrame
+    filtered_reviews = dataset.object  
     excluded_columns = ['Cleaned Review', 'Month']  
     filtered_reviews_to_save = filtered_reviews.drop(columns=excluded_columns, errors='ignore')
 
@@ -806,7 +737,6 @@ def result_page1(chosen_year, total_reviews, sentiment_data, is_yearly=True):
                 previous_year_values = data[sentiment].shift(1)
                 current_year_values = data[sentiment]
 
-                # Avoid division by zero
                 with np.errstate(divide='ignore', invalid='ignore'):
                     pct_change = np.where(previous_year_values == 0, np.nan, (current_year_values - previous_year_values) / previous_year_values * 100)
 
@@ -832,7 +762,6 @@ def result_page1(chosen_year, total_reviews, sentiment_data, is_yearly=True):
             min_year = sentiment_data[sentiment].idxmin()
             analysis_output1.append(f"- **{sentiment} sentiment** peaked in **{max_year}** and was lowest in **{min_year}**.\n")
 
-        # Recommendations
         analysis_output1.append("\n### Recommendations:\n")
         analysis_output1.append("Focus on enhancing strategies in years with declining sentiments and replicate successful practices from years with rising positive sentiment.\n")
 
@@ -928,7 +857,6 @@ def result_page2(reviews_df, chosen_year):
         else:
             analysis_output2.append(f"- {category.replace('_', ' ').title()}: Ratings are similar for both domestic and international flights ({domestic_avg:.2f}).")
 
-    # Recommendations
     analysis_output2.append("\n### Recommendations: ")
     
     for category in rating_columns:
@@ -973,55 +901,47 @@ def result_page2(reviews_df, chosen_year):
 
 def result_page3(traveller_rating_summary, sentiment_distribution_percentage, chosen_year):
     analysis_output3 = []
-    analysis_output3.append(f"### Traveler Type Analysis ({chosen_year})")
-    
-    # Analyzing overall rating by type of traveler
-    highest_rated = traveller_rating_summary.iloc[0]
-    lowest_rated = traveller_rating_summary.iloc[-1]
+    analysis_output3.append(f"### Traveler Type Sentiment Analysis ({chosen_year})")
 
-    analysis_output3.append(f"\n- Highest Rated Traveler Type: {highest_rated['type_of_traveller']} with an average rating of {highest_rated['mean']:.2f}.")
-    analysis_output3.append(f"  This traveler type seems to have the most satisfaction on average, with {highest_rated['count']} reviews.")
-    
-    analysis_output3.append(f"\n- Lowest Rated Traveler Type: {lowest_rated['type_of_traveller']} with an average rating of {lowest_rated['mean']:.2f}.")
-    analysis_output3.append(f"  This indicates that this group may be less satisfied compared to others, with {lowest_rated['count']} reviews.")
+    # Identifying the most and least satisfied traveler types based on sentiment distribution
+    most_satisfied_type = sentiment_distribution_percentage.idxmax(axis=0)['Positive']
+    least_satisfied_type = sentiment_distribution_percentage.idxmax(axis=0)['Negative']
 
-    # Additional insights from median rating
-    analysis_output3.append(f"\n- Median Ratings: ")
-    for i, row in traveller_rating_summary.iterrows():
-        analysis_output3.append(f"  - {row['type_of_traveller']} has a median rating of {row['median']:.2f}.")
-
-    # Analyze sentiment distribution by traveler type
-    analysis_output3.append(f"\n ### Sentiment Analysis by Traveler Type")
+    most_satisfied_sentiment = sentiment_distribution_percentage.loc[most_satisfied_type]
+    least_satisfied_sentiment = sentiment_distribution_percentage.loc[least_satisfied_type]
     
-    for traveller_type in sentiment_distribution_percentage.index:
-        sentiment = sentiment_distribution_percentage.loc[traveller_type]
-        
-        # Identify which sentiment dominates for each traveler type
-        dominant_sentiment = sentiment.idxmax()
-        dominant_percentage = sentiment.max() * 100
-        
-        analysis_output3.append(f"\n- {traveller_type}: ")
-        analysis_output3.append(f"  - Dominant Sentiment: {dominant_sentiment} ({dominant_percentage:.1f}% of total reviews)")
-        
-        # Analyze balance across sentiments
-        positive_percentage = sentiment['Positive'] * 100 if 'Positive' in sentiment else 0
-        neutral_percentage = sentiment['Neutral'] * 100 if 'Neutral' in sentiment else 0
-        negative_percentage = sentiment['Negative'] * 100 if 'Negative' in sentiment else 0
-        
-        analysis_output3.append(f"  - Sentiment Breakdown:")
-        analysis_output3.append(f"    - Positive: {positive_percentage:.1f}%")
-        analysis_output3.append(f"    - Neutral: {neutral_percentage:.1f}%")
-        analysis_output3.append(f"    - Negative: {negative_percentage:.1f}%")
-        
-        # Specific recommendations based on sentiment analysis
-        if dominant_sentiment == 'Negative':
-            analysis_output3.append(f"  - Recommendation: Focus on improving the experience for {traveller_type} travelers, as negative sentiment is the most prevalent.")
-        elif dominant_sentiment == 'Neutral':
-            analysis_output3.append(f"  - Recommendation: Consider investigating why {traveller_type} travelers are neither fully satisfied nor dissatisfied.")
-        else:
-            analysis_output3.append(f"  - Recommendation: Maintain the high satisfaction levels for {traveller_type} travelers, but still look for opportunities to reduce any neutral or negative experiences.")
+    dominant_sentiment_most_satisfied = most_satisfied_sentiment.idxmax()
+    dominant_percentage_most_satisfied = most_satisfied_sentiment.max() * 100
+
+    dominant_sentiment_least_satisfied = least_satisfied_sentiment.idxmax()
+    dominant_percentage_least_satisfied = least_satisfied_sentiment.max() * 100
+
+    # Output the traveler types with the highest and lowest satisfaction
+    analysis_output3.append(f"\n- **Most Satisfied Traveler Type:** {most_satisfied_type} with {dominant_sentiment_most_satisfied} sentiment dominating at {dominant_percentage_most_satisfied:.1f}% of reviews.")
+    analysis_output3.append(f"  These travelers are largely satisfied, and efforts should focus on maintaining current service levels.")
+    
+    analysis_output3.append(f"\n- **Least Satisfied Traveler Type:** {least_satisfied_type} with {dominant_sentiment_least_satisfied} sentiment dominating at {dominant_percentage_least_satisfied:.1f}% of reviews.")
+    analysis_output3.append(f"  This indicates significant dissatisfaction, suggesting targeted improvements are necessary for this group.")
+
+    # Actionable recommendation based on least satisfied traveler type
+    if dominant_sentiment_least_satisfied == 'Negative':
+        analysis_output3.append(f"\n### Recommendations for {least_satisfied_type}:")
+        analysis_output3.append(f"  - **Improve service quality**: Address negative feedback points, particularly in areas such as inflight comfort, customer service, or reliability of services.")
+        analysis_output3.append(f"  - **Seat comfort and convenience**: Ensure that seating meets the expectations of {least_satisfied_type}, offering more legroom, better cushioning, or faster boarding options.")
+        analysis_output3.append(f"  - **Enhanced inflight services**: Upgrade inflight entertainment, offer more personalized meal options, and improve WiFi connectivity to cater to their needs.")
+        analysis_output3.append(f"  - **Streamline ground services**: Focus on faster and more efficient check-ins, boarding processes, and baggage handling to reduce travel stress for {least_satisfied_type}.")
+    elif dominant_sentiment_least_satisfied == 'Neutral':
+        analysis_output3.append(f"\n### Recommendations for {least_satisfied_type}:")
+        analysis_output3.append(f"  - **Identify gaps causing neutral experiences**: Conduct feedback surveys or interviews to understand what aspects of the service are underwhelming.")
+        analysis_output3.append(f"  - **Personalization**: Introduce tailored services, such as customized meal options, or personalized customer support, to push these travelers towards a more positive experience.")
+        analysis_output3.append(f"  - **Service enhancements**: Look at adding value to their experience by providing premium offerings or additional perks, such as loyalty bonuses, better inflight entertainment, or upgraded seating options.")
+    else:
+        analysis_output3.append(f"\n### Recommendations for {least_satisfied_type}:")
+        analysis_output3.append(f"  - **Maintain positive experiences**: Although {least_satisfied_type} travelers are largely satisfied, ensure consistent service quality to retain this satisfaction.")
+        analysis_output3.append(f"  - **Address remaining neutral/negative feedback**: Identify any areas where these travelers are not fully satisfied and make incremental improvements.")
 
     return "\n".join(analysis_output3)
+
 
 
 def result_page4(seat_rating_summary, chosen_year):
@@ -1067,22 +987,18 @@ def result_page4(seat_rating_summary, chosen_year):
     return "\n".join(analysis_output4)
 
 ############################# WIDGETS & CALLBACK ###########################################
-# Create buttons for the sidebar navigation
 button_home = pn.widgets.Button(name="Home", button_type="light", icon='home', sizing_mode='stretch_width')
-button1 = pn.widgets.Button(name="Overall Sentiment Analysis", button_type="light", icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-line"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 19l16 0" /><path d="M4 15l4 -6l4 2l4 -5l4 4" /></svg>', sizing_mode='stretch_width')
+button1 = pn.widgets.Button(name="Overview", button_type="light", icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-line"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 19l16 0" /><path d="M4 15l4 -6l4 2l4 -5l4 4" /></svg>', sizing_mode='stretch_width')
 button2 = pn.widgets.Button(name="AVG Ratings by Route Type", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-sankey"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 3v18h18" /><path d="M3 6h18" /><path d="M3 8c10 0 8 9 18 9" /></svg>')
 button3 = pn.widgets.Button(name="Sentiment by Traveler Type", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-pie-3"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12l-6.5 5.5" /><path d="M12 3v9h9" /><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /></svg>')
-button4 = pn.widgets.Button(name="AVG Ratings by Seat Type", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-bar"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M4 20h14" /></svg>')
+button4 = pn.widgets.Button(name="Overall Ratings by Seat Type", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-bar"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M4 20h14" /></svg>')
 button5 = pn.widgets.Button(name="Wordcloud + Ngram", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-language"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 5h7" /><path d="M9 3v2c0 4.418 -2.239 8 -5 8" /><path d="M5 9c0 2.144 2.952 3.908 6.7 4" /><path d="M12 20l4 -9l4 9" /><path d="M19.1 18h-6.2" /></svg>')
 button6 = pn.widgets.Button(name="Sentiment by Route", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-plane-inflight"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 11.085h5a2 2 0 1 1 0 4h-15l-3 -6h3l2 2h3l-2 -7h3l4 7z" /><path d="M3 21h18" /></svg>')
-button7 = pn.widgets.Button(name="View and Save Dataset", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-device-floppy"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2" /><path d="M12 14m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M14 4l0 4l-6 0l0 -4" /></svg>')
+button7 = pn.widgets.Button(name="Data Explorer", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-device-floppy"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2" /><path d="M12 14m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M14 4l0 4l-6 0l0 -4" /></svg>')
 
 main_area = pn.Column()
 
 def typewriter_effect(text, pane, delay=0.01):
-    """
-    A function that updates a Markdown pane to simulate a typewriter effect.
-    """
     pane.object = "" 
     for char in text:
         pane.object += char  
@@ -1128,12 +1044,11 @@ def show_page2(event=None):
         threading.Thread(target=typewriter_effect, args=(result_text, analysis_output_pane)).start()
 
     button_analyze.on_click(analyze_results2)
-    main_area.append(grid)  # Add the grid to the main area
+    main_area.append(grid)  
 
 
 
 def show_page3(attr=None, old=None, new=None):
-    """Display sentiment distribution by traveler type using Bokeh."""
     chosen_year = year_selector.value
     year_reviews, _, _ = get_sentiment_analysis(reviews_df, chosen_year)
     
@@ -1148,11 +1063,10 @@ def show_page3(attr=None, old=None, new=None):
 
     grid = pn.GridSpec()
     button_analyze = pn.widgets.Button(name="Analyse", button_type="primary", button_style='outline', width=150, height=50)
-    
-    grid[0, 1:4] = pn.pane.Bokeh(plot_traveller_sentiments(year_reviews, chosen_year), align='center')
+    grid[0, 1:4] = pn.pane.Bokeh(plot_traveller_sentiments(year_reviews, chosen_year))
     grid[0, 5] = button_analyze
-    analysis_output_pane = pn.pane.Markdown("", sizing_mode='stretch_width')
-    grid[1, 1:4] = analysis_output_pane  
+    analysis_output_pane = pn.pane.Markdown("")
+    grid[1, 1:4] = analysis_output_pane
 
     def analyze_results3(event):
         result_text = result_page3(traveller_rating_summary, sentiment_distribution_percentage, chosen_year)
@@ -1208,46 +1122,36 @@ def show_page5(event=None):
         main_area.append(pn.pane.Matplotlib(plt.gcf(), height=600))
 
 def show_page6(event=None):
-    # Get the selected year from the UI
     chosen_year = year_selector.value 
     
     if chosen_year is None:
         print("No year selected")
         return
 
-    # Perform sentiment analysis for the chosen year
     year_reviews, _, _ = get_sentiment_analysis(reviews_df, chosen_year)
     
-    # Mapping vader_sentiment to numerical values
     sentiment_mapping = {'Negative': -1.0, 'Neutral': 0.5, 'Positive': 1.0} 
     year_reviews.loc[:, 'vader_sentiment_numeric'] = year_reviews['rating_sentiment'].map(sentiment_mapping)
 
-    # Split the reviews into domestic and international routes
     domestic_routes = year_reviews[year_reviews['is_domestic'] == True]
     international_routes = year_reviews[year_reviews['is_domestic'] == False]
     
-    # Calculate the mean sentiment per route for both categories
     domestic_mean_sentiment = domestic_routes.groupby('route')['vader_sentiment_numeric'].mean().reset_index()
     international_mean_sentiment = international_routes.groupby('route')['vader_sentiment_numeric'].mean().reset_index()
     
-    # Sort by mean sentiment to get the best and worst routes at the top
     domestic_mean_sentiment_sorted = domestic_mean_sentiment.sort_values(by='vader_sentiment_numeric', ascending=False)
     international_mean_sentiment_sorted = international_mean_sentiment.sort_values(by='vader_sentiment_numeric', ascending=False)
 
-    # Apply color mapping to the sentiment data
     domestic_colors = domestic_mean_sentiment_sorted['vader_sentiment_numeric'].apply(get_color).tolist()
     international_colors = international_mean_sentiment_sorted['vader_sentiment_numeric'].apply(get_color).tolist()
 
-    # Calculate dynamic heights based on the number of routes
     base_height = 6
     height_per_route = 0.4
     fig_height_domestic = base_height + (len(domestic_mean_sentiment_sorted) * height_per_route)
     fig_height_international = base_height + (len(international_mean_sentiment_sorted) * height_per_route)
-    
-    # Clear the main area before rendering new content
+
     main_area.clear()
 
-    # Create the sentiment charts using the improved function
     sentiment_chart = sentiment_by_route(
         domestic_mean_sentiment_sorted, 
         international_mean_sentiment_sorted, 
@@ -1259,47 +1163,29 @@ def show_page6(event=None):
         chosen_year
     )
 
-    # Use a grid layout to display the sentiment chart in page 6
     grid = pn.GridSpec(sizing_mode='stretch_both')
     grid[0, 0:4] = pn.pane.Bokeh(sentiment_chart)  
-
-    # Add the grid to the main area
     main_area.append(grid)
 
 def show_page7(event=None):
-    """Display the dataset and filter widgets in a grid layout."""
-    # Assuming 'reviews_df' is your complete dataset, and 'Year' is one of the columns in the dataset
     year_reviews = reviews_df.copy()
 
-    # Clear the main area (assuming main_area is pre-defined somewhere in your actual code)
     main_area.clear()
 
     def format_column_names(df):
-        """Format column names by removing underscores and capitalizing each word."""
         df.columns = [col.replace('_', ' ').title() for col in df.columns]
         return df
 
-    # Format column names and exclude specified columns
     exclude_columns = ['Cleaned Review', 'Month', 'Vader Sentiment Numeric']  
     year_reviews = format_column_names(year_reviews)
 
-    # Initialize a GridSpec layout
     grid = pn.GridSpec(sizing_mode='stretch_both')
-
-    # Create a dynamic DataFrame widget to display the dataset
     dataset = pn.pane.DataFrame(year_reviews.drop(columns=exclude_columns, errors='ignore'), sizing_mode='stretch_both')
-
-    # Create filter widgets
     filter_widgets = create_filter_widgets(year_reviews, exclude_columns, dataset)
-
-    # Add the dataset to the grid
     grid[0, 0:4] = dataset
-
-    # Add filter widgets to the right side of the grid
     filter_column = pn.Column(*filter_widgets.values(), sizing_mode='stretch_width')
     grid[0, 4:5] = filter_column
 
-    # Create a FileDownload button to download the filtered dataset
     download_button = pn.widgets.FileDownload(
         filename='filtered_reviews.csv',
         callback=lambda: get_filtered_csv(dataset),
@@ -1308,10 +1194,7 @@ def show_page7(event=None):
         label = 'Download'
     )
 
-    # Add the download button below the filters
     filter_column.append(download_button)
-
-    # Append the grid to the main area
     main_area.append(grid)
 
 
@@ -1331,8 +1214,6 @@ def show_home_page(event=None):
     main_area.append(grid)
 
 
-
-# Attach callbacks to buttons
 button_home.on_click(lambda event: set_current_page('home'))
 button1.on_click(lambda event: set_current_page('page1'))
 button2.on_click(lambda event: set_current_page('page2'))
@@ -1363,7 +1244,6 @@ def set_current_page(page):
     elif page == 'page7':
         show_page7()
 
-
 # Automatically update the page content when the year selector is changed
 def update_on_year_change(event):
     if current_page == 'home':
@@ -1387,7 +1267,7 @@ def update_on_year_change(event):
 year_selector.param.watch(update_on_year_change, 'value')
 
 
-#################### SIDEBAR LAYOUT ##########################
+#################### SIDEBAR LAYOUT ###########################
 
 sidebar = pn.Column(
     pn.pane.Markdown("## Menu"),
