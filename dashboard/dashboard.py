@@ -438,7 +438,7 @@ def plot_seat_type_ratings(year_reviews, chosen_year):
     seat_rating_summary = seat_rating_summary.sort_values(by='mean', ascending=False)
 
     bar_plot = hv.Bars(seat_rating_summary, kdims=['Seat Type'], vdims=['mean']).opts(
-        title=f'Average Ratings by Seat Type ({chosen_year})',
+        title=f'Overall Average Ratings by Seat Type ({chosen_year})',
         xlabel='Seat Type',
         ylabel='Average Rating',
         color='Seat Type', 
@@ -709,11 +709,12 @@ def get_filtered_csv(dataset):
     return csv_io
 
 ############################# INTERPRETATION OF RESULTS + RECOMMENDATIONS ###########################################
+### RESULTS: SENTIMENT TREND
 def result_page1(chosen_year, total_reviews, sentiment_data, is_yearly=True):
     analysis_output1 = [] 
 
     if is_yearly:
-        analysis_output1.append("### Analyzing customer sentiment trends across all years...\n")
+        analysis_output1.append("### Analysing customer sentiment trends across all years...\n")
 
         # Trend Analysis
         sentiment_trends = {}
@@ -786,7 +787,7 @@ def result_page1(chosen_year, total_reviews, sentiment_data, is_yearly=True):
         analysis_output1.append("- **Replicate success from positive years** - Examine successful strategies from years where positive sentiment increased. These could include popular promotions, customer service highlights, or improvements in operational efficiency.\n")
 
     else:
-        analysis_output1.append(f"## Analyzing sentiment for the year **{chosen_year}**...\n")
+        analysis_output1.append(f"## Analysing sentiment trend for the year **{chosen_year}**...\n")
         analysis_output1.append(f"- Total reviews: A total of **{total_reviews}** reviews were submitted in **{chosen_year}**.\n")
 
         # Peak and Lowest Review Month Analysis
@@ -836,7 +837,7 @@ def result_page1(chosen_year, total_reviews, sentiment_data, is_yearly=True):
 
     return "\n".join(analysis_output1)
 
-
+### RESULT: AVG RATINGS BY ROUTE TYPE
 def result_page2(reviews_df, chosen_year):
     analysis_output2 = [] 
 
@@ -845,7 +846,7 @@ def result_page2(reviews_df, chosen_year):
     international_ratings = reviews_df[reviews_df['is_domestic'] == False]
 
     # Output the year of analysis
-    analysis_output2.append(f"### Analyzing customer satisfaction for domestic and international flights in **{chosen_year}**:")
+    analysis_output2.append(f"### Analysing performance by route type in terms of customer satisfaction and feedback (**{chosen_year}**)...")
     
     # Compare overall satisfaction
     domestic_overall_avg = domestic_ratings[rating_columns].mean().mean()
@@ -871,50 +872,51 @@ def result_page2(reviews_df, chosen_year):
             analysis_output2.append(f"- {category.replace('_', ' ').title()}: Ratings are similar for both domestic and international flights ({domestic_avg:.2f}).")
 
     analysis_output2.append("\n### Recommendations: ")
-    
+
     for category in rating_columns:
         domestic_avg = domestic_ratings[category].mean()
         international_avg = international_ratings[category].mean()
         
         if domestic_avg > international_avg:
             if category == 'seat_comfort':
-                analysis_output2.append("- **Seat Comfort:** Maintain high standards for domestic flights. Consider introducing additional legroom or seat upgrades on international flights.\n Gather customer feedback on seat preferences for future improvements.")
+                analysis_output2.append("- **Seat Comfort:** Maintain domestic standards but explore new configurations or upgrades on international routes, possibly adding extra comfort features (legroom, recline) for long-haul passengers. Conduct focus groups with frequent international travelers to gain feedback.\n")
             elif category == 'cabin_staff_service':
-                analysis_output2.append("- **Cabin Staff Service:** Ensure domestic service remains top-notch. Identify key training elements from international staff that could enhance domestic service.\n Implement cross-training programs between domestic and international staff.")
+                analysis_output2.append("- **Cabin Staff Service:** Utilize domestic service as a benchmark. Offer cross-training opportunities for international crews to match the standards. Consider staff exchanges to bring best practices across teams.\n")
             elif category == 'food_&_beverages':
-                analysis_output2.append("- **Food & Beverages:** Highlight successful domestic menu items and explore their introduction on international flights.\n Conduct taste tests with customers to determine preferences.")
+                analysis_output2.append("- **Food & Beverages:** Introduce successful domestic dishes on international routes, ensuring variety and cultural diversity in meal options. Conduct in-flight taste tests to gather real-time feedback on food quality.\n")
             elif category == 'ground_service':
-                analysis_output2.append("- **Ground Service:** Evaluate domestic processes for efficiency and consider adopting successful strategies from international operations.\n Monitor customer flow during peak times and adjust staffing accordingly.")
+                analysis_output2.append("- **Ground Service:** Leverage domestic efficiency improvements on international routes, focusing on high-traffic international hubs. Monitor ground services during peak travel seasons to ensure timely and smooth operations.\n")
             elif category == 'wifi_&_connectivity':
-                analysis_output2.append("- **WiFi & Connectivity:** Continue to uphold high standards for domestic services while addressing any connectivity complaints on international routes.\n Invest in technology upgrades to enhance connectivity on international flights.")
+                analysis_output2.append("- **WiFi & Connectivity:** Maintain domestic excellence in connectivity while exploring stronger international partnerships with technology providers to enhance global in-flight services. Offer surveys targeting frequent international travelers for specific connectivity challenges.\n")
             elif category == 'value_for_money':
-                analysis_output2.append("- **Value for Money:** Maintain competitive pricing on domestic routes. Investigate customer perceptions of value on international flights.\n Conduct market research to better understand customer expectations regarding pricing.")
+                analysis_output2.append("- **Value for Money:** Domestic pricing seems well-balanced, but international routes might require better positioning. Introduce dynamic pricing models or seasonal promotions for international travelers to improve perceived value.\n")
             elif category == 'inflight_entertainment':
-                analysis_output2.append("- **Inflight Entertainment:** Leverage high domestic satisfaction to enhance entertainment options on international flights.\n Expand partnerships with content providers for diverse entertainment options.")
+                analysis_output2.append("- **Inflight Entertainment:** Consider expanding domestic entertainment options internationally, especially regional content for diverse travelers. Partner with streaming services to enhance entertainment libraries.\n")
         elif domestic_avg < international_avg:
             if category == 'seat_comfort':
-                analysis_output2.append("- **Seat Comfort:** Investigate the factors leading to higher ratings on international flights and apply those insights to improve domestic comfort.\n Analyze seat configuration data to find optimal layouts for customer comfort.")
+                analysis_output2.append("- **Seat Comfort:** Investigate configurations on international routes to optimize comfort for domestic flights. Introduce economy plus or premium options domestically for passengers seeking more comfort.\n")
             elif category == 'cabin_staff_service':
-                analysis_output2.append("- **Cabin Staff Service:** Learn from international service strengths to improve domestic experiences.\n Implement best practices from high-rated international routes in domestic staff training.")
+                analysis_output2.append("- **Cabin Staff Service:** Adopt successful training programs from international flights to enhance domestic cabin crew performance. Provide international mentors to local staff for improved service consistency.\n")
             elif category == 'food_&_beverages':
-                analysis_output2.append("- **Food & Beverages:** Explore incorporating popular international menu items into domestic offerings.\n Survey frequent flyers about their preferred menu items to guide changes.")
+                analysis_output2.append("- **Food & Beverages:** Incorporate top-rated international food items into the domestic menu, focusing on quality and variety. Trial-run international menu items on select domestic routes for customer feedback.\n")
             elif category == 'ground_service':
-                analysis_output2.append("- **Ground Service:** Identify successful international practices and apply them to enhance domestic ground services.\n Regularly review customer feedback on ground service to target specific areas for improvement.")
+                analysis_output2.append("- **Ground Service:** International practices should be studied to help domestic operations streamline ground handling processes. Evaluate domestic airport partnerships to ensure seamless experiences.\n")
             elif category == 'wifi_&_connectivity':
-                analysis_output2.append("- **WiFi & Connectivity:** Investigate the superior performance of international services and consider upgrades for domestic offerings.\n Perform a technology audit to identify potential upgrades for domestic WiFi.")
+                analysis_output2.append("- **WiFi & Connectivity:** Use international experiences to upgrade domestic networks. Prioritize the introduction of high-speed internet across domestic routes, starting with high-demand flights.\n")
             elif category == 'value_for_money':
-                analysis_output2.append("- **Value for Money:** Focus on enhancing the perceived value of domestic offerings based on international benchmarks.\n Offer bundled services or loyalty discounts to improve perceived value.")
+                analysis_output2.append("- **Value for Money:** Focus on improving domestic perceptions by aligning pricing strategies with service improvements. Offer loyalty benefits or tiered pricing for domestic travelers to boost satisfaction.\n")
             elif category == 'inflight_entertainment':
-                analysis_output2.append("- **Inflight Entertainment:** Enhance domestic entertainment options by adopting successful elements from international flights.\n Collect customer preferences for entertainment options to tailor offerings.")
+                analysis_output2.append("- **Inflight Entertainment:** Improve domestic entertainment options by analysing the success of international offerings. Consider adding regional content or partnering with local entertainment companies to provide curated experiences.\n")
         else:
-            analysis_output2.append(f"- **{category.replace('_', ' ').title()}:** Maintain a consistent approach to service quality across both domestic and international flights while identifying specific areas for improvement.\n Regularly conduct customer satisfaction surveys to monitor performance in these areas.")
+            analysis_output2.append(f"- **{category.replace('_', ' ').title()}**: The consistency between domestic and international ratings suggests that the airline can standardize successful practices across both. Maintain current quality levels while exploring small, incremental improvements.\n")
 
     return "\n".join(analysis_output2)
 
 
+### RESULT: SENTIMENT BY TRAVELER TYPE
 def result_page3(traveller_rating_summary, sentiment_distribution_percentage, chosen_year):
     analysis_output3 = []
-    analysis_output3.append(f"### Traveler Type Sentiment Analysis ({chosen_year})")
+    analysis_output3.append(f"### Analysing which type of traveler group gives the highest/lowest ratings ({chosen_year})...")
 
     # Identifying the most and least satisfied traveler types based on sentiment distribution
     most_satisfied_type = sentiment_distribution_percentage.idxmax(axis=0)['Positive']
@@ -931,80 +933,90 @@ def result_page3(traveller_rating_summary, sentiment_distribution_percentage, ch
 
     # Output the traveler types with the highest and lowest satisfaction
     analysis_output3.append(f"\n- **Most Satisfied Traveler Type:** {most_satisfied_type} with {dominant_sentiment_most_satisfied} sentiment dominating at {dominant_percentage_most_satisfied:.1f}% of reviews.")
-    analysis_output3.append(f"  These travelers are largely satisfied, and efforts should focus on maintaining current service levels.")
+    analysis_output3.append(f"  Travelers in this group are generally content. Efforts should focus on maintaining high levels of service, paying attention to their specific needs (e.g., loyalty programs, comfort).")
     
     analysis_output3.append(f"\n- **Least Satisfied Traveler Type:** {least_satisfied_type} with {dominant_sentiment_least_satisfied} sentiment dominating at {dominant_percentage_least_satisfied:.1f}% of reviews.")
-    analysis_output3.append(f"  This indicates significant dissatisfaction, suggesting targeted improvements are necessary for this group.")
+    analysis_output3.append(f"  This signals key areas of concern requiring immediate improvements to address dissatisfaction.")
 
-    # Actionable recommendation based on least satisfied traveler type
-    if dominant_sentiment_least_satisfied == 'Negative':
-        analysis_output3.append(f"\n### Recommendations for {least_satisfied_type}:")
-        analysis_output3.append(f"  - **Improve service quality**: Address negative feedback points, particularly in areas such as inflight comfort, customer service, or reliability of services.")
-        analysis_output3.append(f"  - **Seat comfort and convenience**: Ensure that seating meets the expectations of {least_satisfied_type}, offering more legroom, better cushioning, or faster boarding options.")
-        analysis_output3.append(f"  - **Enhanced inflight services**: Upgrade inflight entertainment, offer more personalized meal options, and improve WiFi connectivity to cater to their needs.")
-        analysis_output3.append(f"  - **Streamline ground services**: Focus on faster and more efficient check-ins, boarding processes, and baggage handling to reduce travel stress for {least_satisfied_type}.")
-    elif dominant_sentiment_least_satisfied == 'Neutral':
-        analysis_output3.append(f"\n### Recommendations for {least_satisfied_type}:")
-        analysis_output3.append(f"  - **Identify gaps causing neutral experiences**: Conduct feedback surveys or interviews to understand what aspects of the service are underwhelming.")
-        analysis_output3.append(f"  - **Personalization**: Introduce tailored services, such as customized meal options, or personalized customer support, to push these travelers towards a more positive experience.")
-        analysis_output3.append(f"  - **Service enhancements**: Look at adding value to their experience by providing premium offerings or additional perks, such as loyalty bonuses, better inflight entertainment, or upgraded seating options.")
+    # Tailored recommendations based on the least satisfied traveler type
+    if least_satisfied_type == "Family Leisure":
+        analysis_output3.append(f"\n### Recommendations for Family Leisure Travelers:")
+        analysis_output3.append(f"  - **Family-friendly services** - Introduce or expand child-friendly amenities such as priority boarding for families, kids' entertainment options, and family meal plans.")
+        analysis_output3.append(f"  - **Enhanced comfort for parents** - Ensure parents have access to comfortable seating arrangements, like bulkhead seats with more legroom or bassinets for infants.")
+        analysis_output3.append(f"  - **Simplified ground services** - Make check-in and baggage processes smoother for families by offering dedicated family lines or assistance with large amounts of luggage.")
+        analysis_output3.append(f"  - **In-flight entertainment** - Provide family-specific entertainment options such as children's movies, games, and WiFi access for tablets and mobile devices to keep young passengers engaged.")
+    
+    elif least_satisfied_type == "Business":
+        analysis_output3.append(f"\n### Recommendations for Business Travelers:")
+        analysis_output3.append(f"  - **Productivity-focused enhancements** - Provide more reliable WiFi, additional charging ports, and larger workspace areas for laptops, particularly on long-haul flights.")
+        analysis_output3.append(f"  - **Streamlined ground services** - Improve fast-track security and boarding processes, ensuring that business travelers can move through airports quickly.")
+        analysis_output3.append(f"  - **Flexible flight schedules** - Offer more convenient flight schedules or allow last-minute changes to accommodate busy business travelers.")
+        analysis_output3.append(f"  - **Lounge access** - Consider upgrading lounge services with more business amenities, such as meeting rooms or quiet zones for work.")
+    
+    elif least_satisfied_type == "Solo Leisure":
+        analysis_output3.append(f"\n### Recommendations for Solo Travelers:")
+        analysis_output3.append(f"  - **Personalized service** - Offer more one-on-one interaction with staff for solo travelers who may want more assistance or personal recommendations during their journey.")
+        analysis_output3.append(f"  - **Enhanced solo experiences** - Provide perks like discounted access to lounges or single-occupancy seating options, making the experience more comfortable.")
+        analysis_output3.append(f"  - **Safety and convenience** - Focus on improving the perception of safety for solo travelers, with better in-flight security briefings and clear instructions for first-time or nervous travelers.")
+
+    elif least_satisfied_type == "Couple Leisure":
+        analysis_output3.append(f"\n### Recommendations for Couples Travelers:")
+        analysis_output3.append(f"  - **Romantic perks** - Offer packages that include complimentary drinks, better seating arrangements, or romantic-themed meals to enhance the couple's travel experience.")
+        analysis_output3.append(f"  - **Privacy and comfort** - Focus on seating arrangements that offer couples more privacy and comfort, such as pairing seats together with more space or in quieter sections of the aircraft.")
+        analysis_output3.append(f"  - **Personalized experiences** - Introduce personalized touches, like anniversary or honeymoon travel perks, to make their experience feel special and tailored.")
+    
     else:
         analysis_output3.append(f"\n### Recommendations for {least_satisfied_type}:")
-        analysis_output3.append(f"  - **Maintain positive experiences**: Although {least_satisfied_type} travelers are largely satisfied, ensure consistent service quality to retain this satisfaction.")
-        analysis_output3.append(f"  - **Address remaining neutral/negative feedback**: Identify any areas where these travelers are not fully satisfied and make incremental improvements.")
+        analysis_output3.append(f"  - **General Improvements** - Focus on areas that are consistently receiving negative feedback, such as seat comfort or inflight service quality, to address the concerns of this traveler group.")
+        analysis_output3.append(f"  - **Survey for deeper insights**: - Conduct specific surveys targeting {least_satisfied_type} to identify precise pain points and offer more customized solutions in the future.")
 
     return "\n".join(analysis_output3)
 
 
-
+### RESULT: OVERALL AVG RATINGS BY SEAT TYPE
 def result_page4(seat_rating_summary, chosen_year):
     analysis_output4 = []
 
-    analysis_output4.append(f"## Seat Type Analysis ({chosen_year})")
+    analysis_output4.append(f"## Analysing how ratings vary by seat type ({chosen_year})...")
     
-    # Analyzing overall rating by seat type
+    # Identifying the highest and lowest-rated seat types
     highest_rated = seat_rating_summary.iloc[0]
     lowest_rated = seat_rating_summary.iloc[-1]
 
-    analysis_output4.append(f"\n- Highest Rated Seat Type: {highest_rated['seat_type']} with an average rating of {highest_rated['mean']:.2f}.")
-    analysis_output4.append(f"  This seat type seems to offer the most satisfaction on average, with {highest_rated['count']} reviews.")
-    
-    analysis_output4.append(f"\n- Lowest Rated Seat Type: {lowest_rated['seat_type']} with an average rating of {lowest_rated['mean']:.2f}.")
-    analysis_output4.append(f"  This indicates that this seat type may be less satisfying compared to others, with {lowest_rated['count']} reviews.")
+    analysis_output4.append(f"\n- **Highest Rated Seat Type**: {highest_rated['seat_type']} with an average rating of {highest_rated['mean']:.2f} based on {highest_rated['count']} reviews.")
+    analysis_output4.append(f"  This seat type, often associated with enhanced comfort and amenities, is favored by travelers, suggesting that customers flying in {highest_rated['seat_type']} experience greater satisfaction compared to other classes.")
 
-    # Additional insights from median rating
-    analysis_output4.append(f"\n- Median Ratings: ")
-    for i, row in seat_rating_summary.iterrows():
-        analysis_output4.append(f"  - {row['seat_type']} has a median rating of {row['median']}.")
+    analysis_output4.append(f"\n- **Lowest Rated Seat Type**: {lowest_rated['seat_type']} with an average rating of {lowest_rated['mean']:.2f} based on {lowest_rated['count']} reviews.")
+    analysis_output4.append(f"  This seat type is the least favored, indicating significant room for improvement, possibly due to factors such as reduced comfort, limited space, or inadequate features compared to other seat types.")
 
-    # Analyze the distribution of ratings for each seat type
-    for i, row in seat_rating_summary.iterrows():
-        seat_type = row['seat_type']
-        mean_rating = row['mean']
-        median_rating = row['median']
-        count_reviews = row['count']
+    # Recommendations tailored for the least satisfied seat type
+    if lowest_rated['mean'] < 5:
+        analysis_output4.append(f"\n### Recommendations for Improving {lowest_rated['seat_type']}:")
+        analysis_output4.append(f"  - **Urgent Upgrades Needed**: Focus on enhancing comfort with better cushioning and legroom, particularly for long-haul flights.")
+        analysis_output4.append(f"  - **Add Essential Amenities**: Consider introducing USB charging ports, in-seat power outlets, and improved inflight entertainment options.")
+        analysis_output4.append(f"  - **Review Pricing Structure**: Ensure that the pricing is competitive and reflects the quality of the seat.")
+        analysis_output4.append(f"  - **Gather Detailed Feedback**: Implement targeted post-flight surveys to identify specific issues related to {lowest_rated['seat_type']}.")
 
-        analysis_output4.append(f"\n- Seat Type: {seat_type}")
-        analysis_output4.append(f"  - Mean Rating: {mean_rating:.2f}")
-        analysis_output4.append(f"  - Median Rating: {median_rating:.2f}")
-        analysis_output4.append(f"  - Number of Reviews: {count_reviews}")
+    elif 5 <= lowest_rated['mean'] < 7:
+        analysis_output4.append(f"\n### Recommendations for Enhancing {lowest_rated['seat_type']}:")
+        analysis_output4.append(f"  - **Focus on Comfort Enhancements**: Improve padding, seat pitch, and lumbar support to elevate the experience for passengers in this seat type.")
+        analysis_output4.append(f"  - **Introduce Value-Added Services**: Enhance the overall experience with better meal options, complimentary perks, or upgraded inflight Wi-Fi.")
+        analysis_output4.append(f"  - **Analyse Specific Feedback**: Delve into passenger comments to pinpoint issues that prevent higher satisfaction levels.")
 
-        # Provide recommendations based on the ratings
-        if mean_rating < 3:
-            analysis_output4.append(f"  - Recommendation: Improve the features or comfort of {seat_type} seats to enhance customer satisfaction.")
-        elif mean_rating >= 3 and mean_rating < 4:
-            analysis_output4.append(f"  - Recommendation: {seat_type} seats are acceptable, but consider making incremental improvements to boost satisfaction.")
-        else:
-            analysis_output4.append(f"  - Recommendation: Continue to maintain and possibly enhance the {seat_type} seat experience, as it is highly rated.")
+    else:
+        analysis_output4.append(f"\n### Recommendations for Maintaining {lowest_rated['seat_type']}:")
+        analysis_output4.append(f"  - **Continue Delivering Quality**: Maintain the high standards that have resulted in positive ratings, while looking for minor enhancements.")
+        analysis_output4.append(f"  - **Promote in Marketing Campaigns**: Highlight this seat type to attract travelers seeking value and comfort, especially on longer routes.")
 
     return "\n".join(analysis_output4)
 
+
 ############################# WIDGETS & CALLBACK ###########################################
 button_home = pn.widgets.Button(name="Home", button_type="light", icon='home', sizing_mode='stretch_width')
-button1 = pn.widgets.Button(name="Overview", button_type="light", icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-line"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 19l16 0" /><path d="M4 15l4 -6l4 2l4 -5l4 4" /></svg>', sizing_mode='stretch_width')
+button1 = pn.widgets.Button(name="Sentiment Trend", button_type="light", icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-line"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 19l16 0" /><path d="M4 15l4 -6l4 2l4 -5l4 4" /></svg>', sizing_mode='stretch_width')
 button2 = pn.widgets.Button(name="AVG Ratings by Route Type", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-sankey"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 3v18h18" /><path d="M3 6h18" /><path d="M3 8c10 0 8 9 18 9" /></svg>')
 button3 = pn.widgets.Button(name="Sentiment by Traveler Type", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-pie-3"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12l-6.5 5.5" /><path d="M12 3v9h9" /><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /></svg>')
-button4 = pn.widgets.Button(name="Overall Ratings by Seat Type", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-bar"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M4 20h14" /></svg>')
+button4 = pn.widgets.Button(name="Overall AVG Ratings by Seat Type", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-chart-bar"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M4 20h14" /></svg>')
 button5 = pn.widgets.Button(name="Wordcloud + Ngram", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-language"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 5h7" /><path d="M9 3v2c0 4.418 -2.239 8 -5 8" /><path d="M5 9c0 2.144 2.952 3.908 6.7 4" /><path d="M12 20l4 -9l4 9" /><path d="M19.1 18h-6.2" /></svg>')
 button6 = pn.widgets.Button(name="Sentiment by Route", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-plane-inflight"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 11.085h5a2 2 0 1 1 0 4h-15l-3 -6h3l2 2h3l-2 -7h3l4 7z" /><path d="M3 21h18" /></svg>')
 button7 = pn.widgets.Button(name="Data Explorer", button_type="light", sizing_mode='stretch_width', icon='<svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-device-floppy"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2" /><path d="M12 14m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M14 4l0 4l-6 0l0 -4" /></svg>')
@@ -1304,7 +1316,7 @@ dashboard = pn.template.BootstrapTemplate(
     sidebar=[sidebar],
     main=[alert_panel, main_area],
     header_background='black',  
-    site="<b>Air New Zealand</b>",
+    site="Air New Zealand",
     logo="./static/air-nz.png",
     theme=pn.template.DarkTheme,
     sidebar_width=300,
