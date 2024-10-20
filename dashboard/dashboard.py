@@ -713,8 +713,8 @@ def result_page1(chosen_year, total_reviews, sentiment_data, is_yearly=True):
     analysis_output1 = [] 
 
     if is_yearly:
-        analysis_output1.append("### Analyzing customer sentiment trends across all years:\n")
-        
+        analysis_output1.append("### Analyzing customer sentiment trends across all years...\n")
+
         # Trend Analysis
         sentiment_trends = {}
         years = sentiment_data.index.values
@@ -723,20 +723,37 @@ def result_page1(chosen_year, total_reviews, sentiment_data, is_yearly=True):
             trend = np.polyfit(years.flatten(), counts, 1)[0]
             sentiment_trends[sentiment] = trend
 
-            if sentiment_trends[sentiment] > 0:
-                analysis_output1.append(f"- **{sentiment} sentiment** shows an increasing trend over the years, reflecting improving customer sentiment or service quality.\n")
-            elif sentiment_trends[sentiment] < 0:
-                analysis_output1.append(f"- **{sentiment} sentiment** shows a decreasing trend, suggesting areas where service might need improvement.\n")
-            else:
-                analysis_output1.append(f"- **{sentiment} sentiment** remains relatively stable over time.\n")
+            if sentiment == 'Positive':
+                if sentiment_trends[sentiment] > 0:
+                    analysis_output1.append(f"- **Positive sentiment** shows an increasing trend, indicating improving customer satisfaction and service quality.\n")
+                elif sentiment_trends[sentiment] < 0:
+                    analysis_output1.append(f"- **Positive sentiment** shows a declining trend, suggesting areas where service quality may have diminished, leading to reduced customer satisfaction.\n")
+                else:
+                    analysis_output1.append(f"- **Positive sentiment** has remained relatively stable, indicating consistent customer satisfaction with little change over the years.\n")
 
-        # Calculate percentage change
+            elif sentiment == 'Negative':
+                if sentiment_trends[sentiment] > 0:
+                    analysis_output1.append(f"- **Negative sentiment** shows an increasing trend, reflecting growing customer dissatisfaction and potential service quality issues.\n")
+                elif sentiment_trends[sentiment] < 0:
+                    analysis_output1.append(f"- **Negative sentiment** shows a declining trend, indicating fewer customer complaints or improved service quality.\n")
+                else:
+                    analysis_output1.append(f"- **Negative sentiment** has remained relatively stable, indicating consistent levels of customer dissatisfaction over time.\n")
+
+            elif sentiment == 'Neutral':
+                if sentiment_trends[sentiment] > 0:
+                    analysis_output1.append(f"- **Neutral sentiment** shows an increasing trend, indicating that more customers are indifferent to their experience, which could suggest a lack of standout positive or negative experiences.\n")
+                elif sentiment_trends[sentiment] < 0:
+                    analysis_output1.append(f"- **Neutral sentiment** shows a declining trend, suggesting that fewer customers are feeling neutral, potentially indicating more polarized feedback.\n")
+                else:
+                    analysis_output1.append(f"- **Neutral sentiment** has remained stable, indicating consistent levels of indifference among customers over time.\n")
+                
+        # Calculate Percentage Change
         def calculate_percentage_change(data):
             percentage_changes = {}
             for sentiment in data.columns:
                 previous_year_values = data[sentiment].shift(1)
                 current_year_values = data[sentiment]
-
+                
                 with np.errstate(divide='ignore', invalid='ignore'):
                     pct_change = np.where(previous_year_values == 0, np.nan, (current_year_values - previous_year_values) / previous_year_values * 100)
 
@@ -749,9 +766,10 @@ def result_page1(chosen_year, total_reviews, sentiment_data, is_yearly=True):
         analysis_output1.append("\nYearly percentage changes in sentiment:\n")
         for sentiment, change in percentage_changes.items():
             if np.isnan(change):
-                analysis_output1.append(f"- **{sentiment}**: No data for the previous year to calculate change.\n")
+                analysis_output1.append(f"- **{sentiment}**: Insufficient data to calculate percentage change from the previous year.\n")
             else:
-                analysis_output1.append(f"- **{sentiment}**: {change:.2f}% change year-over-year\n")
+                direction = "increase" if change > 0 else "decrease"
+                analysis_output1.append(f"- **{sentiment}**: {change:.2f}% {direction} year-over-year.\n")
 
         # Peak and Low Points Analysis
         max_sentiments = sentiment_data.max()
@@ -762,64 +780,59 @@ def result_page1(chosen_year, total_reviews, sentiment_data, is_yearly=True):
             min_year = sentiment_data[sentiment].idxmin()
             analysis_output1.append(f"- **{sentiment} sentiment** peaked in **{max_year}** and was lowest in **{min_year}**.\n")
 
+        # Actionable Recommendations
         analysis_output1.append("\n### Recommendations:\n")
-        analysis_output1.append("Focus on enhancing strategies in years with declining sentiments and replicate successful practices from years with rising positive sentiment.\n")
+        analysis_output1.append("- **Focus on years with declining trends** - Target specific years where negative sentiment is increasing. Investigate operational or customer service factors that could be contributing to the decline, and implement corrective measures such as customer service training or operational improvements.\n")
+        analysis_output1.append("- **Replicate success from positive years** - Examine successful strategies from years where positive sentiment increased. These could include popular promotions, customer service highlights, or improvements in operational efficiency.\n")
 
     else:
-        analysis_output1.append(f"## Analyzing sentiment for the year **{chosen_year}**:\n")
-        
+        analysis_output1.append(f"## Analyzing sentiment for the year **{chosen_year}**...\n")
         analysis_output1.append(f"- Total reviews: A total of **{total_reviews}** reviews were submitted in **{chosen_year}**.\n")
-        
-        # Determine peak and lowest months
+
+        # Peak and Lowest Review Month Analysis
         total_reviews_per_month = sentiment_data.sum(axis=1)
         peak_month = total_reviews_per_month.idxmax()
         low_month = total_reviews_per_month.idxmin()
         
         if total_reviews_per_month[peak_month] > total_reviews_per_month.median():
-            analysis_output1.append(f"- **Peak month for reviews**: **{peak_month}** had the highest number of reviews, indicating high customer activity or engagement.\n")
+            analysis_output1.append(f"- **Peak review month**: **{peak_month}** had significantly higher review counts, suggesting a period of high customer activity or seasonal travel demand.\n")
         else:
-            analysis_output1.append(f"- **Peak month for reviews**: **{peak_month}** was within typical activity levels for the year.\n")
+            analysis_output1.append(f"- **Peak review month**: **{peak_month}** had a typical number of reviews for the year.\n")
 
-        analysis_output1.append(f"- **Lowest review month**: **{low_month}** had the fewest reviews. This could indicate a slower travel period or less demand.\n")
+        analysis_output1.append(f"- **Lowest review month**: **{low_month}** saw the fewest reviews, which could be due to reduced travel demand or fewer flights.\n")
 
-        # Analyze sentiment trends across months
-        if 'Positive' in sentiment_data.columns:
-            pos_peak_month = sentiment_data['Positive'].idxmax()
-            pos_low_month = sentiment_data['Positive'].idxmin()
-            if sentiment_data['Positive'][pos_peak_month] > sentiment_data['Positive'].median():
-                analysis_output1.append(f"- **Positive sentiment**: The highest positive sentiment was recorded in **{pos_peak_month}**, indicating a period of high customer satisfaction.\n")
+        # Monthly Sentiment Trends Analysis
+        for sentiment in ['Positive', 'Negative']:
+            if sentiment in sentiment_data.columns:
+                peak_month = sentiment_data[sentiment].idxmax()
+                low_month = sentiment_data[sentiment].idxmin()
+                median_value = sentiment_data[sentiment].median()
+
+                if sentiment_data[sentiment][peak_month] > median_value:
+                    analysis_output1.append(f"- **{sentiment} sentiment peak**: The highest level of **{sentiment}** sentiment occurred in **{peak_month}**, reflecting strong feedback in this month.\n")
+                else:
+                    analysis_output1.append(f"- **{sentiment} sentiment peak**: Sentiment was steady, with **{peak_month}** seeing slightly higher feedback than other months.\n")
+
+                analysis_output1.append(f"- **Lowest {sentiment} sentiment**: **{low_month}** experienced the least amount of {sentiment} feedback. This period may require attention to maintain service standards or resolve issues.\n")
             else:
-                analysis_output1.append(f"- **Positive sentiment**: Positive reviews were spread out with **{pos_peak_month}** seeing a relatively higher number.\n")
-            
-            analysis_output1.append(f"- **Lowest positive sentiment**: **{pos_low_month}** saw fewer positive reviews, which may warrant investigation into service quality during this month.\n")
-        else:
-            analysis_output1.append("- **Positive sentiment**: There were no or very few positive reviews in **{chosen_year}**.\n")
+                analysis_output1.append(f"- **{sentiment} sentiment**: No significant data for {sentiment} sentiment in **{chosen_year}**.\n")
 
-        if 'Negative' in sentiment_data.columns:
-            neg_peak_month = sentiment_data['Negative'].idxmax()
-            neg_low_month = sentiment_data['Negative'].idxmin()
-            if sentiment_data['Negative'][neg_peak_month] > sentiment_data['Negative'].median():
-                analysis_output1.append(f"- **Negative sentiment**: The peak in negative sentiment occurred in **{neg_peak_month}**. This suggests a challenging period for customer satisfaction.\n")
-            else:
-                analysis_output1.append(f"- **Negative sentiment**: Negative feedback was relatively consistent, with **{neg_peak_month}** seeing a slight uptick.\n")
-            
-            analysis_output1.append(f"- **Lowest negative sentiment**: **{neg_low_month}** had the least negative sentiment, indicating better customer experience during this time.\n")
-        else:
-            analysis_output1.append(f"- **Negative sentiment**: Negative feedback was minimal or absent for **{chosen_year}**.\n")
+        # Overall Sentiment Balance
+        total_positive = sentiment_data.get('Positive', 0).sum()
+        total_negative = sentiment_data.get('Negative', 0).sum()
 
-        # Check if the year saw more positive or negative reviews overall
-        total_positive = sentiment_data['Positive'].sum()
-        total_negative = sentiment_data['Negative'].sum()
-        
         if total_positive > total_negative:
-            analysis_output1.append(f"- **Overall sentiment**: **{chosen_year}** had a predominantly positive sentiment, with customers generally expressing satisfaction.\n")
+            analysis_output1.append(f"- **Overall sentiment**: **{chosen_year}** was characterized by more positive sentiment, suggesting customer satisfaction was high.\n")
         elif total_negative > total_positive:
-            analysis_output1.append(f"- **Overall sentiment**: **{chosen_year}** saw more negative sentiment, indicating that customers were more dissatisfied during this period.\n")
+            analysis_output1.append(f"- **Overall sentiment**: Negative feedback outweighed positive reviews, indicating dissatisfaction that year.\n")
         else:
-            analysis_output1.append(f"- **Overall sentiment**: Sentiments were balanced, with nearly equal numbers of positive and negative reviews.\n")
-        
+            analysis_output1.append(f"- **Overall sentiment**: Sentiment was balanced between positive and negative feedback.\n")
+
+        # Actionable Recommendations
         analysis_output1.append("\n### Recommendations:\n")
-        analysis_output1.append("Investigate months with high negative sentiment to identify potential service issues. Also, replicate successful strategies from months with high positive sentiment.\n")
+        analysis_output1.append("- **Investigate negative sentiment months** - Look into the months where negative sentiment was higher to identify specific service issues, flight disruptions, or customer pain points.\n")
+        analysis_output1.append("- **Promote successful periods** -  Months with high positive sentiment can be examined to replicate successful service models or promotional strategies that enhanced customer satisfaction.\n")
+        analysis_output1.append("- **Address demand fluctuations** - Explore why certain months saw lower customer engagement, such as seasonal patterns or potential service gaps, and adapt strategies accordingly to smooth demand.\n")
 
     return "\n".join(analysis_output1)
 
