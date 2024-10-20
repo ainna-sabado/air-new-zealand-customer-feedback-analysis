@@ -99,6 +99,9 @@ Push the code to Heroku using Git:
 git push heroku main
 ```
 
+<img width="461" alt="image" src="https://github.com/user-attachments/assets/fb3832a4-709c-45a5-a907-35b606811426">
+
+
 ### Step 5: Open your app in the browser.
 ```
 heroku open
